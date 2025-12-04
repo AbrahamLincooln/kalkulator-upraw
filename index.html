@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator Zysków z Upraw</title>
+    <title>Kalkulator Zysków</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background: linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%);
-        }
+        body { background: linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%); }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        function CropProfitCalculator() {
+        function App() {
             const [activeTab, setActiveTab] = useState('base');
             const [baseCrops, setBaseCrops] = useState([]);
             const [recipes, setRecipes] = useState([]);
@@ -29,16 +26,16 @@
             const [loading, setLoading] = useState(true);
             const [saving, setSaving] = useState(false);
             const [message, setMessage] = useState('');
+            const [sortBy, setSortBy] = useState('name');
+            const [sortOrder, setSortOrder] = useState('asc');
 
-            useEffect(() => {
-                loadData();
-            }, []);
+            useEffect(() => { loadData(); }, []);
 
             const loadData = async () => {
                 try {
                     setLoading(true);
-                    const result = await window.storage.get('shared-crops-v2', true);
-                    if (result && result.value) {
+                    const result = await window.storage.get('shared-crops-v3', true);
+                    if (result?.value) {
                         const data = JSON.parse(result.value);
                         setBaseCrops(data.baseCrops || []);
                         setRecipes(data.recipes || []);
@@ -46,23 +43,19 @@
                         setNextRecipeId(data.nextRecipeId || 1);
                     } else {
                         setBaseCrops([
-                            { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12 },
-                            { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18 },
+                            { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
+                            { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
                         ]);
-                        setRecipes([
-                            { id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }
-                        ]);
+                        setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
                         setNextBaseCropId(3);
                         setNextRecipeId(2);
                     }
-                } catch (error) {
+                } catch (e) {
                     setBaseCrops([
-                        { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12 },
-                        { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18 },
+                        { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
+                        { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
                     ]);
-                    setRecipes([
-                        { id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }
-                    ]);
+                    setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
                     setNextBaseCropId(3);
                     setNextRecipeId(2);
                 } finally {
@@ -70,447 +63,265 @@
                 }
             };
 
-            const saveData = async (newBaseCrops, newRecipes, newBaseCropId, newRecipeId) => {
+            const saveData = async (bc, r, bcId, rId) => {
                 try {
                     setSaving(true);
-                    const data = {
-                        baseCrops: newBaseCrops,
-                        recipes: newRecipes,
-                        nextBaseCropId: newBaseCropId,
-                        nextRecipeId: newRecipeId
-                    };
-                    await window.storage.set('shared-crops-v2', JSON.stringify(data), true);
-                    showMessage('✓ Zapisano');
-                } catch (error) {
-                    showMessage('✗ Błąd zapisu');
-                    console.error(error);
+                    await window.storage.set('shared-crops-v3', JSON.stringify({
+                        baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId
+                    }), true);
+                    setMessage('✓ Zapisano');
+                    setTimeout(() => setMessage(''), 2000);
+                } catch (e) {
+                    setMessage('✗ Błąd');
+                    setTimeout(() => setMessage(''), 2000);
                 } finally {
                     setSaving(false);
                 }
             };
 
-            const showMessage = (msg) => {
-                setMessage(msg);
-                setTimeout(() => setMessage(''), 2000);
-            };
-
             const addBaseCrop = () => {
-                const newBaseCrops = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0 }];
-                setBaseCrops(newBaseCrops);
-                const newId = nextBaseCropId + 1;
-                setNextBaseCropId(newId);
-                saveData(newBaseCrops, recipes, newId, nextRecipeId);
+                const nb = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0, time: 0 }];
+                setBaseCrops(nb);
+                setNextBaseCropId(nextBaseCropId + 1);
+                saveData(nb, recipes, nextBaseCropId + 1, nextRecipeId);
             };
 
             const updateBaseCrop = (id, field, value) => {
-                const newBaseCrops = baseCrops.map(crop =>
-                    crop.id === id ? { ...crop, [field]: value } : crop
-                );
-                setBaseCrops(newBaseCrops);
-                saveData(newBaseCrops, recipes, nextBaseCropId, nextRecipeId);
+                const nb = baseCrops.map(c => c.id === id ? { ...c, [field]: value } : c);
+                setBaseCrops(nb);
+                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
             };
 
             const deleteBaseCrop = (id) => {
-                const newBaseCrops = baseCrops.filter(crop => crop.id !== id);
-                setBaseCrops(newBaseCrops);
-                saveData(newBaseCrops, recipes, nextBaseCropId, nextRecipeId);
+                const nb = baseCrops.filter(c => c.id !== id);
+                setBaseCrops(nb);
+                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
+            };
+
+            const sortCrops = (crops) => {
+                return [...crops].sort((a, b) => {
+                    let av, bv;
+                    if (sortBy === 'name') {
+                        av = a.name.toLowerCase();
+                        bv = b.name.toLowerCase();
+                        return sortOrder === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+                    } else {
+                        av = a[sortBy];
+                        bv = b[sortBy];
+                        return sortOrder === 'asc' ? av - bv : bv - av;
+                    }
+                });
+            };
+
+            const handleSort = (col) => {
+                if (sortBy === col) {
+                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                } else {
+                    setSortBy(col);
+                    setSortOrder('asc');
+                }
             };
 
             const addRecipe = () => {
-                const newRecipes = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }];
-                setRecipes(newRecipes);
-                const newId = nextRecipeId + 1;
-                setNextRecipeId(newId);
-                saveData(baseCrops, newRecipes, nextBaseCropId, newId);
+                const nr = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }];
+                setRecipes(nr);
+                setNextRecipeId(nextRecipeId + 1);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId + 1);
             };
 
             const updateRecipe = (id, field, value) => {
-                const newRecipes = recipes.map(recipe =>
-                    recipe.id === id ? { ...recipe, [field]: value } : recipe
-                );
-                setRecipes(newRecipes);
-                saveData(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
+                const nr = recipes.map(r => r.id === id ? { ...r, [field]: value } : r);
+                setRecipes(nr);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
             };
 
             const deleteRecipe = (id) => {
-                const newRecipes = recipes.filter(recipe => recipe.id !== id);
-                setRecipes(newRecipes);
-                saveData(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
+                const nr = recipes.filter(r => r.id !== id);
+                setRecipes(nr);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
             };
 
-            const addIngredient = (recipeId) => {
-                const newRecipes = recipes.map(recipe => {
-                    if (recipe.id === recipeId) {
-                        return {
-                            ...recipe,
-                            ingredients: [...recipe.ingredients, { crop: '', amount: 1 }]
-                        };
+            const addIngredient = (rId) => {
+                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: '', amount: 1 }] } : r);
+                setRecipes(nr);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+            };
+
+            const updateIngredient = (rId, idx, field, value) => {
+                const nr = recipes.map(r => {
+                    if (r.id === rId) {
+                        const ni = [...r.ingredients];
+                        ni[idx] = { ...ni[idx], [field]: value };
+                        return { ...r, ingredients: ni };
                     }
-                    return recipe;
+                    return r;
                 });
-                setRecipes(newRecipes);
-                saveData(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
+                setRecipes(nr);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
             };
 
-            const updateIngredient = (recipeId, ingredientIndex, field, value) => {
-                const newRecipes = recipes.map(recipe => {
-                    if (recipe.id === recipeId) {
-                        const newIngredients = [...recipe.ingredients];
-                        newIngredients[ingredientIndex] = {
-                            ...newIngredients[ingredientIndex],
-                            [field]: value
-                        };
-                        return { ...recipe, ingredients: newIngredients };
-                    }
-                    return recipe;
-                });
-                setRecipes(newRecipes);
-                saveData(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
+            const deleteIngredient = (rId, idx) => {
+                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: r.ingredients.filter((_, i) => i !== idx) } : r);
+                setRecipes(nr);
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
             };
 
-            const deleteIngredient = (recipeId, ingredientIndex) => {
-                const newRecipes = recipes.map(recipe => {
-                    if (recipe.id === recipeId) {
-                        const newIngredients = recipe.ingredients.filter((_, idx) => idx !== ingredientIndex);
-                        return { ...recipe, ingredients: newIngredients };
-                    }
-                    return recipe;
-                });
-                setRecipes(newRecipes);
-                saveData(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
-            };
-
-            const calculateRecipeCost = (recipe) => {
-                return recipe.ingredients.reduce((total, ingredient) => {
-                    const crop = baseCrops.find(c => c.name === ingredient.crop);
-                    if (crop) {
-                        return total + (crop.buyPrice * ingredient.amount);
-                    }
-                    return total;
+            const calcCost = (recipe) => {
+                return recipe.ingredients.reduce((t, ing) => {
+                    const c = baseCrops.find(x => x.name === ing.crop);
+                    return t + (c ? c.buyPrice * ing.amount : 0);
                 }, 0);
             };
 
-            const calculateRecipeProfit = (recipe) => {
-                const cost = calculateRecipeCost(recipe);
-                return recipe.sellPrice - cost;
-            };
-
-            const calculateRecipeMargin = (recipe) => {
-                if (recipe.sellPrice === 0) return 0;
-                const profit = calculateRecipeProfit(recipe);
-                return ((profit / recipe.sellPrice) * 100).toFixed(1);
-            };
+            const calcProfit = (recipe) => recipe.sellPrice - calcCost(recipe);
 
             const resetData = async () => {
-                if (confirm('Czy na pewno chcesz wyczyścić wszystkie dane?')) {
+                if (confirm('Wyczyścić wszystkie dane?')) {
                     try {
-                        await window.storage.delete('shared-crops-v2', true);
+                        await window.storage.delete('shared-crops-v3', true);
                         setBaseCrops([]);
                         setRecipes([]);
                         setNextBaseCropId(1);
                         setNextRecipeId(1);
-                        showMessage('✓ Wyczyszczono');
-                    } catch (error) {
-                        console.error(error);
-                    }
+                        setMessage('✓ Wyczyszczono');
+                        setTimeout(() => setMessage(''), 2000);
+                    } catch (e) {}
                 }
             };
 
-            if (loading) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center">
-                        <div className="text-emerald-400 text-xl">Ładowanie...</div>
-                    </div>
-                );
-            }
+            if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-emerald-400 text-xl">Ładowanie...</div></div>;
+
+            const sorted = sortCrops(baseCrops);
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-7xl mx-auto">
-                        {/* Header */}
-                        <div className="bg-gradient-to-br from-emerald-900/40 to-green-950/40 backdrop-blur-sm border border-emerald-700/30 rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
-                            <div className="flex items-center justify-between mb-6">
+                        <div className="bg-gradient-to-br from-emerald-900/40 to-green-950/40 backdrop-blur-sm border border-emerald-700/30 rounded-2xl shadow-2xl p-6 mb-6">
+                            <div className="flex justify-between mb-6">
                                 <div>
-                                    <h1 className="text-3xl md:text-5xl font-bold text-emerald-400 mb-2">
-                                        Kalkulator Zysków z Upraw
-                                    </h1>
+                                    <h1 className="text-4xl font-bold text-emerald-400 mb-2">Kalkulator Zysków z Upraw</h1>
                                     <p className="text-emerald-300/70 text-sm">Współdzielone dane</p>
                                 </div>
-                                <div className="flex flex-col items-end gap-2">
-                                    {(saving || message) && (
-                                        <span className="text-xs text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded">
-                                            {saving ? '💾 Zapisywanie...' : message}
-                                        </span>
-                                    )}
-                                </div>
+                                {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded h-fit">{saving ? '💾 Zapisywanie...' : message}</span>}
                             </div>
-
-                            {/* Tab Buttons */}
                             <div className="grid grid-cols-2 gap-4">
-                                <button
-                                    onClick={() => setActiveTab('base')}
-                                    className={`py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
-                                        activeTab === 'base'
-                                            ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-900/50 scale-105'
-                                            : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'
-                                    }`}
-                                >
+                                <button onClick={() => setActiveTab('base')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'base' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'}`}>
                                     📦 Baza Cen Upraw
                                 </button>
-                                <button
-                                    onClick={() => setActiveTab('recipes')}
-                                    className={`py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
-                                        activeTab === 'recipes'
-                                            ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-900/50 scale-105'
-                                            : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'
-                                    }`}
-                                >
+                                <button onClick={() => setActiveTab('recipes')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'recipes' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'}`}>
                                     🧪 Receptury Produktów
                                 </button>
                             </div>
                         </div>
 
-                        {/* SEKCJA 1 - Baza Cen */}
                         {activeTab === 'base' && (
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-4 md:p-8">
-                                <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw (Surowce)</h2>
-                                
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-6">
+                                <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw</h2>
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
                                             <tr className="border-b-2 border-emerald-700/40">
-                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Nazwa Uprawy</th>
-                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Cena Zakupu</th>
-                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Cena Sprzedaży</th>
-                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Zysk</th>
-                                                <th className="py-4 px-2"></th>
+                                                <th onClick={() => handleSort('name')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Nazwa {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
+                                                <th onClick={() => handleSort('buyPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Zakupu {sortBy === 'buyPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
+                                                <th onClick={() => handleSort('sellPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Sprzedaży {sortBy === 'sellPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
+                                                <th onClick={() => handleSort('time')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Czas (h) {sortBy === 'time' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
+                                                <th className="text-left py-3 px-3 text-emerald-400 font-semibold">Zysk</th>
+                                                <th className="py-3 px-2"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {baseCrops.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan="5" className="text-center py-8 text-emerald-400/50">
-                                                        Brak upraw. Dodaj pierwszą!
-                                                    </td>
-                                                </tr>
+                                            {sorted.length === 0 ? (
+                                                <tr><td colSpan="6" className="text-center py-8 text-emerald-400/50">Brak upraw</td></tr>
                                             ) : (
-                                                baseCrops.map((crop, i) => (
-                                                    <tr key={crop.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}>
-                                                        <td className="py-3 px-3">
-                                                            <input
-                                                                type="text"
-                                                                value={crop.name}
-                                                                onChange={(e) => updateBaseCrop(crop.id, 'name', e.target.value)}
-                                                                placeholder="Nazwa uprawy"
-                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
-                                                            />
-                                                        </td>
-                                                        <td className="py-3 px-3">
-                                                            <input
-                                                                type="number"
-                                                                value={crop.buyPrice}
-                                                                onChange={(e) => updateBaseCrop(crop.id, 'buyPrice', parseFloat(e.target.value) || 0)}
-                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
-                                                            />
-                                                        </td>
-                                                        <td className="py-3 px-3">
-                                                            <input
-                                                                type="number"
-                                                                value={crop.sellPrice}
-                                                                onChange={(e) => updateBaseCrop(crop.id, 'sellPrice', parseFloat(e.target.value) || 0)}
-                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
-                                                            />
-                                                        </td>
-                                                        <td className="py-3 px-3">
-                                                            <span className="font-bold text-emerald-400">
-                                                                {(crop.sellPrice - crop.buyPrice).toFixed(2)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-2">
-                                                            <button 
-                                                                onClick={() => deleteBaseCrop(crop.id)} 
-                                                                className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg"
-                                                            >
-                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                            </button>
-                                                        </td>
+                                                sorted.map((c, i) => (
+                                                    <tr key={c.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}>
+                                                        <td className="py-2 px-3"><input type="text" value={c.name} onChange={(e) => updateBaseCrop(c.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.buyPrice} onChange={(e) => updateBaseCrop(c.id, 'buyPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.sellPrice} onChange={(e) => updateBaseCrop(c.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.time} onChange={(e) => updateBaseCrop(c.id, 'time', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
+                                                        <td className="py-2 px-3"><span className="font-bold text-emerald-400 text-sm">{(c.sellPrice - c.buyPrice).toFixed(2)}</span></td>
+                                                        <td className="py-2 px-2"><button onClick={() => deleteBaseCrop(c.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded">✕</button></td>
                                                     </tr>
                                                 ))
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
-
-                                <div className="flex gap-3 mt-6">
-                                    <button 
-                                        onClick={addBaseCrop} 
-                                        className="px-6 py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        + Dodaj Surowiec
-                                    </button>
-                                    <button 
-                                        onClick={loadData} 
-                                        className="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        🔄 Odśwież
-                                    </button>
-                                    <button 
-                                        onClick={resetData} 
-                                        className="px-6 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        🗑️ Wyczyść
-                                    </button>
+                                <div className="flex gap-3 mt-4">
+                                    <button onClick={addBaseCrop} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-semibold">+ Dodaj Surowiec</button>
+                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
+                                    <button onClick={resetData} className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded font-semibold">🗑️ Wyczyść</button>
                                 </div>
                             </div>
                         )}
 
-                        {/* SEKCJA 2 - Receptury */}
                         {activeTab === 'recipes' && (
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-4 md:p-8">
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-6">
                                 <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2>
-                                
                                 {recipes.length === 0 ? (
-                                    <div className="text-center py-8 text-blue-400/50">
-                                        Brak receptur. Dodaj pierwszą!
-                                    </div>
+                                    <div className="text-center py-8 text-blue-400/50">Brak receptur</div>
                                 ) : (
-                                    <div className="space-y-6">
-                                        {recipes.map((recipe) => {
-                                            const cost = calculateRecipeCost(recipe);
-                                            const profit = calculateRecipeProfit(recipe);
-                                            const margin = calculateRecipeMargin(recipe);
-                                            
+                                    <div className="space-y-4">
+                                        {recipes.map(r => {
+                                            const cost = calcCost(r);
+                                            const profit = calcProfit(r);
                                             return (
-                                                <div key={recipe.id} className="border border-blue-700/40 rounded-xl p-6 bg-slate-900/30">
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                <div key={r.id} className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30">
+                                                    <div className="grid grid-cols-2 gap-3 mb-3">
                                                         <div>
-                                                            <label className="text-blue-400 text-sm mb-2 block">Nazwa Produktu</label>
-                                                            <input
-                                                                type="text"
-                                                                value={recipe.name}
-                                                                onChange={(e) => updateRecipe(recipe.id, 'name', e.target.value)}
-                                                                placeholder="np. Chleb"
-                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
-                                                            />
+                                                            <label className="text-blue-400 text-xs mb-1 block">Produkt</label>
+                                                            <input type="text" value={r.name} onChange={(e) => updateRecipe(r.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
                                                         </div>
                                                         <div>
-                                                            <label className="text-blue-400 text-sm mb-2 block">Cena Sprzedaży</label>
-                                                            <input
-                                                                type="number"
-                                                                value={recipe.sellPrice}
-                                                                onChange={(e) => updateRecipe(recipe.id, 'sellPrice', parseFloat(e.target.value) || 0)}
-                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
-                                                            />
+                                                            <label className="text-blue-400 text-xs mb-1 block">Cena Sprzedaży</label>
+                                                            <input type="number" value={r.sellPrice} onChange={(e) => updateRecipe(r.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
                                                         </div>
                                                     </div>
-
-                                                    <div className="mb-4">
-                                                        <label className="text-blue-400 text-sm mb-2 block">Składniki:</label>
-                                                        {recipe.ingredients.length === 0 ? (
-                                                            <p className="text-blue-400/50 text-sm mb-2">Brak składników</p>
+                                                    <div className="mb-3">
+                                                        <label className="text-blue-400 text-xs mb-1 block">Składniki:</label>
+                                                        {r.ingredients.length === 0 ? (
+                                                            <p className="text-blue-400/50 text-xs mb-2">Brak składników</p>
                                                         ) : (
-                                                            <div className="space-y-2 mb-3">
-                                                                {recipe.ingredients.map((ing, idx) => {
-                                                                    const cropData = baseCrops.find(c => c.name === ing.crop);
-                                                                    const ingredientCost = cropData ? cropData.buyPrice * ing.amount : 0;
-                                                                    
+                                                            <div className="space-y-2 mb-2">
+                                                                {r.ingredients.map((ing, idx) => {
+                                                                    const cd = baseCrops.find(c => c.name === ing.crop);
+                                                                    const ic = cd ? cd.buyPrice * ing.amount : 0;
                                                                     return (
-                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-3 rounded-lg">
-                                                                            <select
-                                                                                value={ing.crop}
-                                                                                onChange={(e) => updateIngredient(recipe.id, idx, 'crop', e.target.value)}
-                                                                                className="flex-1 px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
-                                                                            >
-                                                                                <option value="">Wybierz surowiec</option>
-                                                                                {baseCrops.map(c => (
-                                                                                    <option key={c.id} value={c.name}>{c.name}</option>
-                                                                                ))}
+                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-2 rounded">
+                                                                            <select value={ing.crop} onChange={(e) => updateIngredient(r.id, idx, 'crop', e.target.value)} className="flex-1 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm">
+                                                                                <option value="">Wybierz</option>
+                                                                                {baseCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                                                             </select>
-                                                                            <input
-                                                                                type="number"
-                                                                                value={ing.amount}
-                                                                                onChange={(e) => updateIngredient(recipe.id, idx, 'amount', parseInt(e.target.value) || 1)}
-                                                                                placeholder="Ilość"
-                                                                                className="w-20 px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
-                                                                                min="1"
-                                                                            />
-                                                                            <span className="text-blue-300 w-24 text-right font-semibold">
-                                                                                = {ingredientCost.toFixed(2)}
-                                                                            </span>
-                                                                            <button
-                                                                                onClick={() => deleteIngredient(recipe.id, idx)}
-                                                                                className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg"
-                                                                            >
-                                                                                ✕
-                                                                            </button>
+                                                                            <input type="number" value={ing.amount} onChange={(e) => updateIngredient(r.id, idx, 'amount', parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm" min="1"/>
+                                                                            <span className="text-blue-300 text-xs w-16 text-right">={ic.toFixed(2)}</span>
+                                                                            <button onClick={() => deleteIngredient(r.id, idx)} className="text-red-400 px-1">✕</button>
                                                                         </div>
                                                                     );
                                                                 })}
                                                             </div>
                                                         )}
-                                                        <button
-                                                            onClick={() => addIngredient(recipe.id)}
-                                                            className="px-4 py-2 bg-blue-700/30 text-blue-400 hover:bg-blue-900/30 border border-blue-600/50 rounded-lg"
-                                                        >
-                                                            + Dodaj Składnik
-                                                        </button>
+                                                        <button onClick={() => addIngredient(r.id)} className="text-blue-400 text-xs">+ Dodaj składnik</button>
                                                     </div>
-
-                                                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-blue-700/40 mb-4">
+                                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-700/40 mb-3">
                                                         <div className="text-center">
-                                                            <p className="text-blue-400/70 text-xs mb-1">Koszt Produkcji</p>
-                                                            <p className="text-2xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
+                                                            <p className="text-blue-400/70 text-xs">Koszt</p>
+                                                            <p className="text-xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
                                                         </div>
                                                         <div className="text-center">
-                                                            <p className="text-blue-400/70 text-xs mb-1">Zysk</p>
-                                                            <p className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                {profit >= 0 ? '+' : ''}{profit.toFixed(2)}
-                                                            </p>
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <p className="text-blue-400/70 text-xs mb-1">Marża</p>
-                                                            <p className={`text-2xl font-bold ${
-                                                                margin >= 50 ? 'text-emerald-400' :
-                                                                margin >= 25 ? 'text-yellow-400' : 'text-red-400'
-                                                            }`}>
-                                                                {margin}%
-                                                            </p>
+                                                            <p className="text-blue-400/70 text-xs">Zysk</p>
+                                                            <p className={`text-xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{profit.toFixed(2)}</p>
                                                         </div>
                                                     </div>
-
-                                                    <button 
-                                                        onClick={() => deleteRecipe(recipe.id)} 
-                                                        className="w-full py-2 bg-red-700/30 text-red-400 hover:bg-red-900/30 border border-red-600/50 rounded-lg"
-                                                    >
-                                                        Usuń Recepturę
-                                                    </button>
+                                                    <button onClick={() => deleteRecipe(r.id)} className="w-full py-1 bg-red-700/30 text-red-400 rounded text-sm">Usuń</button>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 )}
-
-                                <div className="flex gap-3 mt-6">
-                                    <button 
-                                        onClick={addRecipe} 
-                                        className="px-6 py-3 bg-blue-700 hover:bg-blue-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        + Dodaj Recepturę
-                                    </button>
-                                    <button 
-                                        onClick={loadData} 
-                                        className="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        🔄 Odśwież
-                                    </button>
-                                    <button 
-                                        onClick={resetData} 
-                                        className="px-6 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg font-semibold shadow-lg"
-                                    >
-                                        🗑️ Wyczyść
-                                    </button>
+                                <div className="flex gap-3 mt-4">
+                                    <button onClick={addRecipe} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded font-semibold">+ Dodaj Recepturę</button>
+                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
+                                    <button onClick={resetData} className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded font-semibold">🗑️ Wyczyść</button>
                                 </div>
                             </div>
                         )}
@@ -519,7 +330,7 @@
             );
         }
 
-        ReactDOM.render(<CropProfitCalculator />, document.getElementById('root'));
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
