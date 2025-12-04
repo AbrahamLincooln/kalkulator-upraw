@@ -21,6 +21,7 @@
         const { useState, useEffect } = React;
 
         function CropProfitCalculator() {
+            const [activeTab, setActiveTab] = useState('base');
             const [baseCrops, setBaseCrops] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [nextBaseCropId, setNextBaseCropId] = useState(1);
@@ -226,11 +227,12 @@
             return (
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-7xl mx-auto">
+                        {/* Header */}
                         <div className="bg-gradient-to-br from-emerald-900/40 to-green-950/40 backdrop-blur-sm border border-emerald-700/30 rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h1 className="text-3xl md:text-5xl font-bold text-emerald-400 mb-2">
-                                        Kalkulator Zysków
+                                        Kalkulator Zysków z Upraw
                                     </h1>
                                     <p className="text-emerald-300/70 text-sm">Współdzielone dane</p>
                                 </div>
@@ -242,176 +244,276 @@
                                     )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* SEKCJA 1 */}
-                        <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-4 md:p-8 mb-6">
-                            <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw</h2>
-                            
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b-2 border-emerald-700/40">
-                                            <th className="text-left py-3 px-3 text-emerald-400 font-semibold text-sm">Nazwa</th>
-                                            <th className="text-left py-3 px-3 text-emerald-400 font-semibold text-sm">Cena Zakupu</th>
-                                            <th className="text-left py-3 px-3 text-emerald-400 font-semibold text-sm">Cena Sprzedaży</th>
-                                            <th className="text-left py-3 px-3 text-emerald-400 font-semibold text-sm">Zysk</th>
-                                            <th className="py-3 px-2"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {baseCrops.map((crop, i) => (
-                                            <tr key={crop.id} className={i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}>
-                                                <td className="py-2 px-3">
-                                                    <input
-                                                        type="text"
-                                                        value={crop.name}
-                                                        onChange={(e) => updateBaseCrop(crop.id, 'name', e.target.value)}
-                                                        placeholder="Nazwa"
-                                                        className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <input
-                                                        type="number"
-                                                        value={crop.buyPrice}
-                                                        onChange={(e) => updateBaseCrop(crop.id, 'buyPrice', parseFloat(e.target.value) || 0)}
-                                                        className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <input
-                                                        type="number"
-                                                        value={crop.sellPrice}
-                                                        onChange={(e) => updateBaseCrop(crop.id, 'sellPrice', parseFloat(e.target.value) || 0)}
-                                                        className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <span className="font-bold text-emerald-400 text-sm">
-                                                        {(crop.sellPrice - crop.buyPrice).toFixed(2)}
-                                                    </span>
-                                                </td>
-                                                <td className="py-2 px-2">
-                                                    <button onClick={() => deleteBaseCrop(crop.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded">
-                                                        ✕
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            {/* Tab Buttons */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => setActiveTab('base')}
+                                    className={`py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
+                                        activeTab === 'base'
+                                            ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-900/50 scale-105'
+                                            : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'
+                                    }`}
+                                >
+                                    📦 Baza Cen Upraw
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('recipes')}
+                                    className={`py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
+                                        activeTab === 'recipes'
+                                            ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-900/50 scale-105'
+                                            : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'
+                                    }`}
+                                >
+                                    🧪 Receptury Produktów
+                                </button>
                             </div>
-
-                            <button onClick={addBaseCrop} className="mt-3 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-sm">
-                                + Dodaj Surowiec
-                            </button>
                         </div>
 
-                        {/* SEKCJA 2 */}
-                        <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-4 md:p-8 mb-6">
-                            <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2>
-                            
-                            <div className="space-y-4">
-                                {recipes.map((recipe) => {
-                                    const cost = calculateRecipeCost(recipe);
-                                    const profit = calculateRecipeProfit(recipe);
-                                    const margin = calculateRecipeMargin(recipe);
-                                    
-                                    return (
-                                        <div key={recipe.id} className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                                <div>
-                                                    <label className="text-blue-400 text-xs mb-1 block">Produkt</label>
-                                                    <input
-                                                        type="text"
-                                                        value={recipe.name}
-                                                        onChange={(e) => updateRecipe(recipe.id, 'name', e.target.value)}
-                                                        placeholder="Nazwa"
-                                                        className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-blue-400 text-xs mb-1 block">Cena Sprzedaży</label>
-                                                    <input
-                                                        type="number"
-                                                        value={recipe.sellPrice}
-                                                        onChange={(e) => updateRecipe(recipe.id, 'sellPrice', parseFloat(e.target.value) || 0)}
-                                                        className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"
-                                                    />
-                                                </div>
-                                            </div>
+                        {/* SEKCJA 1 - Baza Cen */}
+                        {activeTab === 'base' && (
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-4 md:p-8">
+                                <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw (Surowce)</h2>
+                                
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b-2 border-emerald-700/40">
+                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Nazwa Uprawy</th>
+                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Cena Zakupu</th>
+                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Cena Sprzedaży</th>
+                                                <th className="text-left py-4 px-3 text-emerald-400 font-semibold">Zysk</th>
+                                                <th className="py-4 px-2"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {baseCrops.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="5" className="text-center py-8 text-emerald-400/50">
+                                                        Brak upraw. Dodaj pierwszą!
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                baseCrops.map((crop, i) => (
+                                                    <tr key={crop.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}>
+                                                        <td className="py-3 px-3">
+                                                            <input
+                                                                type="text"
+                                                                value={crop.name}
+                                                                onChange={(e) => updateBaseCrop(crop.id, 'name', e.target.value)}
+                                                                placeholder="Nazwa uprawy"
+                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
+                                                            />
+                                                        </td>
+                                                        <td className="py-3 px-3">
+                                                            <input
+                                                                type="number"
+                                                                value={crop.buyPrice}
+                                                                onChange={(e) => updateBaseCrop(crop.id, 'buyPrice', parseFloat(e.target.value) || 0)}
+                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
+                                                            />
+                                                        </td>
+                                                        <td className="py-3 px-3">
+                                                            <input
+                                                                type="number"
+                                                                value={crop.sellPrice}
+                                                                onChange={(e) => updateBaseCrop(crop.id, 'sellPrice', parseFloat(e.target.value) || 0)}
+                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-emerald-800/40 rounded-lg text-emerald-100 text-sm"
+                                                            />
+                                                        </td>
+                                                        <td className="py-3 px-3">
+                                                            <span className="font-bold text-emerald-400">
+                                                                {(crop.sellPrice - crop.buyPrice).toFixed(2)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 px-2">
+                                                            <button 
+                                                                onClick={() => deleteBaseCrop(crop.id)} 
+                                                                className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
 
-                                            <div className="mb-3">
-                                                <label className="text-blue-400 text-xs mb-1 block">Składniki:</label>
-                                                {recipe.ingredients.map((ing, idx) => (
-                                                    <div key={idx} className="flex gap-2 mb-2 items-center">
-                                                        <select
-                                                            value={ing.crop}
-                                                            onChange={(e) => updateIngredient(recipe.id, idx, 'crop', e.target.value)}
-                                                            className="flex-1 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"
+                                <div className="flex gap-3 mt-6">
+                                    <button 
+                                        onClick={addBaseCrop} 
+                                        className="px-6 py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        + Dodaj Surowiec
+                                    </button>
+                                    <button 
+                                        onClick={loadData} 
+                                        className="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        🔄 Odśwież
+                                    </button>
+                                    <button 
+                                        onClick={resetData} 
+                                        className="px-6 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        🗑️ Wyczyść
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SEKCJA 2 - Receptury */}
+                        {activeTab === 'recipes' && (
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-4 md:p-8">
+                                <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2>
+                                
+                                {recipes.length === 0 ? (
+                                    <div className="text-center py-8 text-blue-400/50">
+                                        Brak receptur. Dodaj pierwszą!
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {recipes.map((recipe) => {
+                                            const cost = calculateRecipeCost(recipe);
+                                            const profit = calculateRecipeProfit(recipe);
+                                            const margin = calculateRecipeMargin(recipe);
+                                            
+                                            return (
+                                                <div key={recipe.id} className="border border-blue-700/40 rounded-xl p-6 bg-slate-900/30">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                        <div>
+                                                            <label className="text-blue-400 text-sm mb-2 block">Nazwa Produktu</label>
+                                                            <input
+                                                                type="text"
+                                                                value={recipe.name}
+                                                                onChange={(e) => updateRecipe(recipe.id, 'name', e.target.value)}
+                                                                placeholder="np. Chleb"
+                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-blue-400 text-sm mb-2 block">Cena Sprzedaży</label>
+                                                            <input
+                                                                type="number"
+                                                                value={recipe.sellPrice}
+                                                                onChange={(e) => updateRecipe(recipe.id, 'sellPrice', parseFloat(e.target.value) || 0)}
+                                                                className="w-full px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mb-4">
+                                                        <label className="text-blue-400 text-sm mb-2 block">Składniki:</label>
+                                                        {recipe.ingredients.length === 0 ? (
+                                                            <p className="text-blue-400/50 text-sm mb-2">Brak składników</p>
+                                                        ) : (
+                                                            <div className="space-y-2 mb-3">
+                                                                {recipe.ingredients.map((ing, idx) => {
+                                                                    const cropData = baseCrops.find(c => c.name === ing.crop);
+                                                                    const ingredientCost = cropData ? cropData.buyPrice * ing.amount : 0;
+                                                                    
+                                                                    return (
+                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-3 rounded-lg">
+                                                                            <select
+                                                                                value={ing.crop}
+                                                                                onChange={(e) => updateIngredient(recipe.id, idx, 'crop', e.target.value)}
+                                                                                className="flex-1 px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
+                                                                            >
+                                                                                <option value="">Wybierz surowiec</option>
+                                                                                {baseCrops.map(c => (
+                                                                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={ing.amount}
+                                                                                onChange={(e) => updateIngredient(recipe.id, idx, 'amount', parseInt(e.target.value) || 1)}
+                                                                                placeholder="Ilość"
+                                                                                className="w-20 px-3 py-2 bg-slate-900/80 border border-blue-800/40 rounded-lg text-blue-100"
+                                                                                min="1"
+                                                                            />
+                                                                            <span className="text-blue-300 w-24 text-right font-semibold">
+                                                                                = {ingredientCost.toFixed(2)}
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={() => deleteIngredient(recipe.id, idx)}
+                                                                                className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg"
+                                                                            >
+                                                                                ✕
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                        <button
+                                                            onClick={() => addIngredient(recipe.id)}
+                                                            className="px-4 py-2 bg-blue-700/30 text-blue-400 hover:bg-blue-900/30 border border-blue-600/50 rounded-lg"
                                                         >
-                                                            <option value="">Wybierz</option>
-                                                            {baseCrops.map(c => (
-                                                                <option key={c.id} value={c.name}>{c.name}</option>
-                                                            ))}
-                                                        </select>
-                                                        <input
-                                                            type="number"
-                                                            value={ing.amount}
-                                                            onChange={(e) => updateIngredient(recipe.id, idx, 'amount', parseInt(e.target.value) || 1)}
-                                                            className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"
-                                                            min="1"
-                                                        />
-                                                        <button onClick={() => deleteIngredient(recipe.id, idx)} className="text-red-400 px-2">
-                                                            ✕
+                                                            + Dodaj Składnik
                                                         </button>
                                                     </div>
-                                                ))}
-                                                <button onClick={() => addIngredient(recipe.id)} className="text-blue-400 text-xs mt-1">
-                                                    + Dodaj składnik
-                                                </button>
-                                            </div>
 
-                                            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-blue-700/40">
-                                                <div className="text-center">
-                                                    <p className="text-blue-400/70 text-xs">Koszt</p>
-                                                    <p className="text-lg font-bold text-yellow-400">{cost.toFixed(2)}</p>
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-blue-400/70 text-xs">Zysk</p>
-                                                    <p className={`text-lg font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {profit.toFixed(2)}
-                                                    </p>
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-blue-400/70 text-xs">Marża</p>
-                                                    <p className="text-lg font-bold text-teal-400">{margin}%</p>
-                                                </div>
-                                            </div>
+                                                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-blue-700/40 mb-4">
+                                                        <div className="text-center">
+                                                            <p className="text-blue-400/70 text-xs mb-1">Koszt Produkcji</p>
+                                                            <p className="text-2xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-blue-400/70 text-xs mb-1">Zysk</p>
+                                                            <p className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {profit >= 0 ? '+' : ''}{profit.toFixed(2)}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-blue-400/70 text-xs mb-1">Marża</p>
+                                                            <p className={`text-2xl font-bold ${
+                                                                margin >= 50 ? 'text-emerald-400' :
+                                                                margin >= 25 ? 'text-yellow-400' : 'text-red-400'
+                                                            }`}>
+                                                                {margin}%
+                                                            </p>
+                                                        </div>
+                                                    </div>
 
-                                            <button onClick={() => deleteRecipe(recipe.id)} className="mt-3 w-full py-1 bg-red-700/30 text-red-400 rounded text-sm">
-                                                Usuń Recepturę
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                                    <button 
+                                                        onClick={() => deleteRecipe(recipe.id)} 
+                                                        className="w-full py-2 bg-red-700/30 text-red-400 hover:bg-red-900/30 border border-red-600/50 rounded-lg"
+                                                    >
+                                                        Usuń Recepturę
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 mt-6">
+                                    <button 
+                                        onClick={addRecipe} 
+                                        className="px-6 py-3 bg-blue-700 hover:bg-blue-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        + Dodaj Recepturę
+                                    </button>
+                                    <button 
+                                        onClick={loadData} 
+                                        className="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        🔄 Odśwież
+                                    </button>
+                                    <button 
+                                        onClick={resetData} 
+                                        className="px-6 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg font-semibold shadow-lg"
+                                    >
+                                        🗑️ Wyczyść
+                                    </button>
+                                </div>
                             </div>
-
-                            <button onClick={addRecipe} className="mt-3 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded text-sm">
-                                + Dodaj Recepturę
-                            </button>
-                        </div>
-
-                        {/* Przyciski */}
-                        <div className="flex gap-2">
-                            <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm">
-                                🔄 Odśwież
-                            </button>
-                            <button onClick={resetData} className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded text-sm">
-                                🗑️ Wyczyść
-                            </button>
-                        </div>
+                        )}
                     </div>
                 </div>
             );
