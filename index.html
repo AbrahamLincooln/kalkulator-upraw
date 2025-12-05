@@ -66,7 +66,7 @@
             const saveData = async (bc, r, bcId, rId) => {
                 try {
                     setSaving(true);
-                    await window.storage.set('shared-crops-v3', JSON.stringify({
+                    await window.storage.set('kalkulator-upraw-data', JSON.stringify({
                         baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId
                     }), true);
                     setMessage('✓ Zapisano');
@@ -332,4 +332,5 @@
     </script>
 </body>
 </html>
+
 
