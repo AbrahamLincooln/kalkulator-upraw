@@ -5,11 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulator Zysków</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 
-    Poprawka błędu: Usunięto globalne skrypty Firebase (wersje non-module). 
-    Zastąpiono je importami modułowymi bezpośrednio w bloku <script type="module"> 
-    poniżej, co jest wymagane do poprawnego działania z Reactem/modułami ES6.
-    -->
     
     <script type="module">
         import * as React from 'https://esm.sh/react@18';
@@ -18,22 +13,40 @@
         // Poprawne modułowe importy Firebase (ES6 modules)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global variables provided by the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        let app = null;
+        let db = null;
+        let auth = null;
+        let firebaseInitialized = false;
 
-        // Utility function to get the document reference path for private user data
-        const getUserDataDocRef = (userId) => {
-            // Path: /artifacts/{appId}/users/{userId}/appData/data
-            return doc(db, 'artifacts', appId, 'users', userId, 'appData', 'data');
-        };
+        // --- Robust Firebase Initialization and Error Handling ---
+        try {
+            setLogLevel('debug'); // Enable debug logging for troubleshooting
+
+            let firebaseConfig = {};
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = JSON.parse(__firebase_config);
+            }
+
+            if (Object.keys(firebaseConfig).length > 0) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                firebaseInitialized = true;
+                console.log("Firebase initialized successfully.");
+            } else {
+                console.warn("Firebase configuration is missing or empty. Running without database persistence.");
+            }
+        } catch (e) {
+            console.error("FATAL ERROR during Firebase initialization. Database features disabled.", e);
+            firebaseInitialized = false;
+        }
+        // --------------------------------------------------------
 
         const defaultData = {
             baseCrops: [
@@ -46,6 +59,12 @@
             nextBaseCropId: 3,
             nextRecipeId: 2,
         };
+        
+        // Utility function to get the document reference path for private user data
+        const getUserDataDocRef = (userId) => {
+            // Path: /artifacts/{appId}/users/{userId}/appData/data
+            return doc(db, 'artifacts', appId, 'users', userId, 'appData', 'data');
+        };
 
         function App() {
             const [activeTab, setActiveTab] = React.useState('base');
@@ -54,7 +73,7 @@
             const [nextBaseCropId, setNextBaseCropId] = React.useState(1);
             const [nextRecipeId, setNextRecipeId] = React.useState(1);
             
-            const [loading, setLoading] = React.useState(true);
+            const [loading, setLoading] = React.useState(firebaseInitialized); // Start loading only if FB is expected to init
             const [saving, setSaving] = React.useState(false);
             const [message, setMessage] = React.useState('');
             
@@ -66,6 +85,15 @@
 
             // 1. Firebase Authentication
             React.useEffect(() => {
+                if (!firebaseInitialized || !auth) {
+                    setLoading(false); // If FB is not initialized, stop loading and use local defaults
+                    setBaseCrops(defaultData.baseCrops);
+                    setRecipes(defaultData.recipes);
+                    setNextBaseCropId(defaultData.nextBaseCropId);
+                    setNextRecipeId(defaultData.nextRecipeId);
+                    return;
+                }
+
                 const signIn = async () => {
                     try {
                         if (initialAuthToken) {
@@ -78,24 +106,35 @@
                     }
                 };
 
+                // Listen for auth state changes
                 const unsubscribe = onAuthStateChanged(auth, (user) => {
                     if (user) {
                         setUserId(user.uid);
                     } else {
-                        // User logged out or anonymous sign-in failed
+                        // User logged out or initial state, try to sign in
                         signIn(); 
                     }
                 });
 
                 return () => unsubscribe();
-            }, []);
+            }, []); // Dependency on initial mounting
 
             // 2. Real-time Firestore Data Listener (onSnapshot)
             React.useEffect(() => {
-                if (!userId) return; // Wait for authentication
+                if (!firebaseInitialized || !db || !userId) return; // Wait for successful FB init and authentication
 
                 const dataDocRef = getUserDataDocRef(userId);
 
+                // Function to initialize data if the document doesn't exist
+                const initializeData = async () => {
+                    try {
+                        await setDoc(dataDocRef, defaultData);
+                        console.log("Default data initialized.");
+                    } catch (e) {
+                        console.error("Error initializing default data:", e);
+                    }
+                };
+                
                 // Setup real-time listener
                 const unsubscribe = onSnapshot(dataDocRef, (docSnapshot) => {
                     if (docSnapshot.exists()) {
@@ -107,13 +146,12 @@
                             setNextRecipeId(data.nextRecipeId || 1);
                             console.log("Data loaded/updated from Firestore.");
                         } catch (e) {
-                            console.error("Error parsing document data:", e);
-                            // Fallback to defaults or initialization logic
-                            initializeData(dataDocRef);
+                            console.error("Error parsing document data, resetting to defaults:", e);
+                            initializeData(); // Try to reset if parsing fails
                         }
                     } else {
                         console.log("No data document found. Initializing...");
-                        initializeData(dataDocRef);
+                        initializeData();
                     }
                     setLoading(false);
                 }, (error) => {
@@ -122,19 +160,12 @@
                 });
 
                 return () => unsubscribe();
-            }, [userId]); // Re-run when userId changes
+            }, [userId]); // Re-run when userId changes and Firebase is initialized
 
-            // Function to initialize data if the document doesn't exist
-            const initializeData = async (docRef) => {
-                await setDoc(docRef, defaultData)
-                    .then(() => console.log("Default data initialized."))
-                    .catch((e) => console.error("Error initializing default data:", e));
-            };
-            
             // Replaces the old saveData with Firestore setDoc
             const saveData = async (bc, r, bcId, rId) => {
-                if (!userId) {
-                    setMessage('Brak autoryzacji do zapisu');
+                if (!userId || !db) {
+                    setMessage('Brak autoryzacji do zapisu lub baza danych niedostępna');
                     setTimeout(() => setMessage(''), 2000);
                     return;
                 }
@@ -146,9 +177,8 @@
                         recipes: r, 
                         nextBaseCropId: bcId, 
                         nextRecipeId: rId
-                    }, { merge: false }); // Overwrite completely to ensure consistency
+                    }, { merge: false });
 
-                    // Note: setStates are handled automatically by onSnapshot, but we update the message here
                     setMessage('✓ Zapisano');
                     setTimeout(() => setMessage(''), 2000);
                 } catch (e) {
@@ -162,12 +192,16 @@
 
             // Helpers to update local state and trigger remote save (via onSnapshot)
             const updateStateAndSave = (newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId) => {
+                // Update local state immediately
                 setBaseCrops(newBaseCrops);
                 setRecipes(newRecipes);
                 setNextBaseCropId(newNextBaseCropId);
                 setNextRecipeId(newNextRecipeId);
-                // Call saveData to push changes to Firestore
-                saveData(newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId);
+                
+                // Only save remotely if Firebase is available
+                if (firebaseInitialized) {
+                    saveData(newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId);
+                }
             };
 
             const addBaseCrop = () => {
@@ -264,8 +298,8 @@
 
             const performReset = async () => {
                 setShowResetModal(false);
-                if (!userId) {
-                    setMessage('Brak autoryzacji.');
+                if (!userId || !db) {
+                    setMessage('Brak autoryzacji lub baza danych niedostępna.');
                     setTimeout(() => setMessage(''), 2000);
                     return;
                 }
@@ -274,8 +308,7 @@
 
                 try {
                     await deleteDoc(docRef);
-                    // onSnapshot will detect the deletion and reload with defaults if security rules allow writes.
-                    // For safety, we can immediately re-initialize with default data:
+                    // Immediately re-initialize with default data to ensure the document exists again.
                     await setDoc(docRef, defaultData); 
                     setMessage('✓ Wyczyszczono i zainicjowano ponownie');
                     setTimeout(() => setMessage(''), 2000);
@@ -310,25 +343,21 @@
                 </div>
             );
 
-            if (loading) return (
+            // Conditional rendering for loading state
+            if (loading && firebaseInitialized) return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-900">
                     <div className="text-emerald-400 text-xl flex items-center space-x-2">
                         <svg className="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Ładowanie...</span>
+                        <span>Ładowanie danych użytkownika...</span>
                     </div>
                 </div>
             );
 
             const sorted = sortCrops(baseCrops);
-            const userDisplayId = userId ? `${userId.substring(0, 8)}...` : 'Anonim';
-
-            // IMPORTANT: Display the full userId for multi-user purposes, not a substring.
-            // Using a full userId in the UI (or in a tooltip) is crucial for others to connect/identify.
-            const fullUserId = userId || 'Anonim';
-
+            const fullUserId = userId || 'Anonim (Dostęp lokalny/brak autoryzacji)';
 
             return (
                 <div className="min-h-screen p-4 md:p-8 font-sans" style={{ background: 'linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%)' }}>
@@ -339,10 +368,15 @@
                                 <div>
                                     <h1 className="text-4xl font-extrabold text-emerald-400 mb-1">Kalkulator Zysków z Upraw</h1>
                                     <p className="text-emerald-300/70 text-xs sm:text-sm">Twoje prywatne dane | Użytkownik: <span className="font-mono text-emerald-300 break-all">{fullUserId}</span></p>
+                                    {!firebaseInitialized && (
+                                        <p className="text-red-400 text-sm mt-2">⚠️ Funkcje bazy danych są niedostępne. Zmiany nie zostaną zapisane.</p>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-end mt-4 sm:mt-0">
                                     {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded h-fit transition-opacity duration-300">{saving ? '💾 Zapisywanie...' : message}</span>}
-                                    <button onClick={() => setShowResetModal(true)} className="mt-2 text-red-400 text-xs hover:text-red-300 transition-colors">Wyczyść dane (Reset)</button>
+                                    {firebaseInitialized && (
+                                        <button onClick={() => setShowResetModal(true)} className="mt-2 text-red-400 text-xs hover:text-red-300 transition-colors">Wyczyść dane (Reset)</button>
+                                    )}
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
