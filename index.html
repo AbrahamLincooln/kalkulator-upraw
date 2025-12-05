@@ -4,98 +4,186 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulator Zysków</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background: linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%); }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <!-- 
+    Poprawka błędu: Usunięto globalne skrypty Firebase (wersje non-module). 
+    Zastąpiono je importami modułowymi bezpośrednio w bloku <script type="module"> 
+    poniżej, co jest wymagane do poprawnego działania z Reactem/modułami ES6.
+    -->
+    
+    <script type="module">
+        import * as React from 'https://esm.sh/react@18';
+        import * as ReactDOM from 'https://esm.sh/react-dom@18';
+
+        // Poprawne modułowe importy Firebase (ES6 modules)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Utility function to get the document reference path for private user data
+        const getUserDataDocRef = (userId) => {
+            // Path: /artifacts/{appId}/users/{userId}/appData/data
+            return doc(db, 'artifacts', appId, 'users', userId, 'appData', 'data');
+        };
+
+        const defaultData = {
+            baseCrops: [
+                { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
+                { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
+            ],
+            recipes: [
+                { id: 1, name: 'Chleb', ingredients: [{ crop: 'Pszenica', amount: 3 }], sellPrice: 50 }
+            ],
+            nextBaseCropId: 3,
+            nextRecipeId: 2,
+        };
 
         function App() {
-            const [activeTab, setActiveTab] = useState('base');
-            const [baseCrops, setBaseCrops] = useState([]);
-            const [recipes, setRecipes] = useState([]);
-            const [nextBaseCropId, setNextBaseCropId] = useState(1);
-            const [nextRecipeId, setNextRecipeId] = useState(1);
-            const [loading, setLoading] = useState(true);
-            const [saving, setSaving] = useState(false);
-            const [message, setMessage] = useState('');
-            const [sortBy, setSortBy] = useState('name');
-            const [sortOrder, setSortOrder] = useState('asc');
+            const [activeTab, setActiveTab] = React.useState('base');
+            const [baseCrops, setBaseCrops] = React.useState([]);
+            const [recipes, setRecipes] = React.useState([]);
+            const [nextBaseCropId, setNextBaseCropId] = React.useState(1);
+            const [nextRecipeId, setNextRecipeId] = React.useState(1);
+            
+            const [loading, setLoading] = React.useState(true);
+            const [saving, setSaving] = React.useState(false);
+            const [message, setMessage] = React.useState('');
+            
+            const [sortBy, setSortBy] = React.useState('name');
+            const [sortOrder, setSortOrder] = React.useState('asc');
+            
+            const [userId, setUserId] = React.useState(null);
+            const [showResetModal, setShowResetModal] = React.useState(false); // Custom confirm state
 
-            useEffect(() => { loadData(); }, []);
-
-            const loadData = async () => {
-                try {
-                    setLoading(true);
-                    const result = await window.storage.get('kalkulator-upraw-data', true);
-                    if (result?.value) {
-                        const data = JSON.parse(result.value);
-                        setBaseCrops(data.baseCrops || []);
-                        setRecipes(data.recipes || []);
-                        setNextBaseCropId(data.nextBaseCropId || 1);
-                        setNextRecipeId(data.nextRecipeId || 1);
-                    } else {
-                        setBaseCrops([
-                            { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
-                            { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
-                        ]);
-                        setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
-                        setNextBaseCropId(3);
-                        setNextRecipeId(2);
+            // 1. Firebase Authentication
+            React.useEffect(() => {
+                const signIn = async () => {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase Sign-In failed:", error);
                     }
-                } catch (e) {
-                    setBaseCrops([
-                        { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
-                        { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
-                    ]);
-                    setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
-                    setNextBaseCropId(3);
-                    setNextRecipeId(2);
-                } finally {
-                    setLoading(false);
-                }
-            };
+                };
 
+                const unsubscribe = onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        setUserId(user.uid);
+                    } else {
+                        // User logged out or anonymous sign-in failed
+                        signIn(); 
+                    }
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            // 2. Real-time Firestore Data Listener (onSnapshot)
+            React.useEffect(() => {
+                if (!userId) return; // Wait for authentication
+
+                const dataDocRef = getUserDataDocRef(userId);
+
+                // Setup real-time listener
+                const unsubscribe = onSnapshot(dataDocRef, (docSnapshot) => {
+                    if (docSnapshot.exists()) {
+                        try {
+                            const data = docSnapshot.data();
+                            setBaseCrops(data.baseCrops || []);
+                            setRecipes(data.recipes || []);
+                            setNextBaseCropId(data.nextBaseCropId || 1);
+                            setNextRecipeId(data.nextRecipeId || 1);
+                            console.log("Data loaded/updated from Firestore.");
+                        } catch (e) {
+                            console.error("Error parsing document data:", e);
+                            // Fallback to defaults or initialization logic
+                            initializeData(dataDocRef);
+                        }
+                    } else {
+                        console.log("No data document found. Initializing...");
+                        initializeData(dataDocRef);
+                    }
+                    setLoading(false);
+                }, (error) => {
+                    console.error("Firestore snapshot listener failed:", error);
+                    setLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, [userId]); // Re-run when userId changes
+
+            // Function to initialize data if the document doesn't exist
+            const initializeData = async (docRef) => {
+                await setDoc(docRef, defaultData)
+                    .then(() => console.log("Default data initialized."))
+                    .catch((e) => console.error("Error initializing default data:", e));
+            };
+            
+            // Replaces the old saveData with Firestore setDoc
             const saveData = async (bc, r, bcId, rId) => {
+                if (!userId) {
+                    setMessage('Brak autoryzacji do zapisu');
+                    setTimeout(() => setMessage(''), 2000);
+                    return;
+                }
+                const dataDocRef = getUserDataDocRef(userId);
                 try {
                     setSaving(true);
-                    await window.storage.set('kalkulator-upraw-data', JSON.stringify({
-                        baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId
-                    }), true);
+                    await setDoc(dataDocRef, {
+                        baseCrops: bc, 
+                        recipes: r, 
+                        nextBaseCropId: bcId, 
+                        nextRecipeId: rId
+                    }, { merge: false }); // Overwrite completely to ensure consistency
+
+                    // Note: setStates are handled automatically by onSnapshot, but we update the message here
                     setMessage('✓ Zapisano');
                     setTimeout(() => setMessage(''), 2000);
                 } catch (e) {
-                    setMessage('✗ Błąd');
+                    console.error("Error saving data:", e);
+                    setMessage('✗ Błąd zapisu');
                     setTimeout(() => setMessage(''), 2000);
                 } finally {
                     setSaving(false);
                 }
             };
 
+            // Helpers to update local state and trigger remote save (via onSnapshot)
+            const updateStateAndSave = (newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId) => {
+                setBaseCrops(newBaseCrops);
+                setRecipes(newRecipes);
+                setNextBaseCropId(newNextBaseCropId);
+                setNextRecipeId(newNextRecipeId);
+                // Call saveData to push changes to Firestore
+                saveData(newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId);
+            };
+
             const addBaseCrop = () => {
-                const nb = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0, time: 0 }];
-                setBaseCrops(nb);
-                setNextBaseCropId(nextBaseCropId + 1);
-                saveData(nb, recipes, nextBaseCropId + 1, nextRecipeId);
+                const newCrops = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0, time: 0 }];
+                const newId = nextBaseCropId + 1;
+                updateStateAndSave(newCrops, recipes, newId, nextRecipeId);
             };
 
             const updateBaseCrop = (id, field, value) => {
-                const nb = baseCrops.map(c => c.id === id ? { ...c, [field]: value } : c);
-                setBaseCrops(nb);
-                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
+                const newCrops = baseCrops.map(c => c.id === id ? { ...c, [field]: value } : c);
+                updateStateAndSave(newCrops, recipes, nextBaseCropId, nextRecipeId);
             };
 
             const deleteBaseCrop = (id) => {
-                const nb = baseCrops.filter(c => c.id !== id);
-                setBaseCrops(nb);
-                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
+                const newCrops = baseCrops.filter(c => c.id !== id);
+                updateStateAndSave(newCrops, recipes, nextBaseCropId, nextRecipeId);
             };
 
             const sortCrops = (crops) => {
@@ -108,7 +196,10 @@
                     } else {
                         av = a[sortBy];
                         bv = b[sortBy];
-                        return sortOrder === 'asc' ? av - bv : bv - av;
+                        // Handle potential NaN if price fields are empty strings during input
+                        const numA = Number(av) || 0; 
+                        const numB = Number(bv) || 0;
+                        return sortOrder === 'asc' ? numA - numB : numB - numA;
                     }
                 });
             };
@@ -123,32 +214,28 @@
             };
 
             const addRecipe = () => {
-                const nr = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }];
-                setRecipes(nr);
-                setNextRecipeId(nextRecipeId + 1);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId + 1);
+                const newRecipes = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }];
+                const newId = nextRecipeId + 1;
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, newId);
             };
 
             const updateRecipe = (id, field, value) => {
-                const nr = recipes.map(r => r.id === id ? { ...r, [field]: value } : r);
-                setRecipes(nr);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+                const newRecipes = recipes.map(r => r.id === id ? { ...r, [field]: value } : r);
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
             const deleteRecipe = (id) => {
-                const nr = recipes.filter(r => r.id !== id);
-                setRecipes(nr);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+                const newRecipes = recipes.filter(r => r.id !== id);
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
             const addIngredient = (rId) => {
-                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: '', amount: 1 }] } : r);
-                setRecipes(nr);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+                const newRecipes = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: baseCrops[0]?.name || '', amount: 1 }] } : r);
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
             const updateIngredient = (rId, idx, field, value) => {
-                const nr = recipes.map(r => {
+                const newRecipes = recipes.map(r => {
                     if (r.id === rId) {
                         const ni = [...r.ingredients];
                         ni[idx] = { ...ni[idx], [field]: value };
@@ -156,91 +243,151 @@
                     }
                     return r;
                 });
-                setRecipes(nr);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
             const deleteIngredient = (rId, idx) => {
-                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: r.ingredients.filter((_, i) => i !== idx) } : r);
-                setRecipes(nr);
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
+                const newRecipes = recipes.map(r => r.id === rId ? { ...r, ingredients: r.ingredients.filter((_, i) => i !== idx) } : r);
+                updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
             const calcCost = (recipe) => {
                 return recipe.ingredients.reduce((t, ing) => {
                     const c = baseCrops.find(x => x.name === ing.crop);
-                    return t + (c ? c.buyPrice * ing.amount : 0);
+                    const amount = Number(ing.amount) || 0;
+                    const buyPrice = c ? Number(c.buyPrice) || 0 : 0;
+                    return t + (buyPrice * amount);
                 }, 0);
             };
 
-            const calcProfit = (recipe) => recipe.sellPrice - calcCost(recipe);
+            const calcProfit = (recipe) => (Number(recipe.sellPrice) || 0) - calcCost(recipe);
 
-            const resetData = async () => {
-                if (confirm('Wyczyścić wszystkie dane?')) {
-                    try {
-                        await window.storage.delete('shared-crops-v3', true);
-                        setBaseCrops([]);
-                        setRecipes([]);
-                        setNextBaseCropId(1);
-                        setNextRecipeId(1);
-                        setMessage('✓ Wyczyszczono');
-                        setTimeout(() => setMessage(''), 2000);
-                    } catch (e) {}
+            const performReset = async () => {
+                setShowResetModal(false);
+                if (!userId) {
+                    setMessage('Brak autoryzacji.');
+                    setTimeout(() => setMessage(''), 2000);
+                    return;
+                }
+
+                const docRef = getUserDataDocRef(userId);
+
+                try {
+                    await deleteDoc(docRef);
+                    // onSnapshot will detect the deletion and reload with defaults if security rules allow writes.
+                    // For safety, we can immediately re-initialize with default data:
+                    await setDoc(docRef, defaultData); 
+                    setMessage('✓ Wyczyszczono i zainicjowano ponownie');
+                    setTimeout(() => setMessage(''), 2000);
+                } catch (e) {
+                    console.error("Error resetting data:", e);
+                    setMessage('✗ Błąd czyszczenia danych');
+                    setTimeout(() => setMessage(''), 2000);
                 }
             };
+            
+            // Custom Modal Component for confirmation
+            const ResetModal = ({ onConfirm, onClose }) => (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-800 border border-red-700/50 rounded-xl p-6 shadow-2xl max-w-sm w-full">
+                        <h3 className="text-xl font-bold text-red-400 mb-3">Potwierdź czyszczenie danych</h3>
+                        <p className="text-slate-300 mb-6">Czy na pewno chcesz wyczyścić WSZYSTKIE zapisane uprawy i receptury? Ta operacja jest nieodwracalna.</p>
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={onClose} 
+                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-semibold transition-colors"
+                            >
+                                Anuluj
+                            </button>
+                            <button 
+                                onClick={onConfirm} 
+                                className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded font-semibold transition-colors"
+                            >
+                                Tak, wyczyść
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
 
-            if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-emerald-400 text-xl">Ładowanie...</div></div>;
+            if (loading) return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-900">
+                    <div className="text-emerald-400 text-xl flex items-center space-x-2">
+                        <svg className="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Ładowanie...</span>
+                    </div>
+                </div>
+            );
 
             const sorted = sortCrops(baseCrops);
+            const userDisplayId = userId ? `${userId.substring(0, 8)}...` : 'Anonim';
+
+            // IMPORTANT: Display the full userId for multi-user purposes, not a substring.
+            // Using a full userId in the UI (or in a tooltip) is crucial for others to connect/identify.
+            const fullUserId = userId || 'Anonim';
+
 
             return (
-                <div className="min-h-screen p-4 md:p-8">
+                <div className="min-h-screen p-4 md:p-8 font-sans" style={{ background: 'linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%)' }}>
+                    {showResetModal && <ResetModal onConfirm={performReset} onClose={() => setShowResetModal(false)} />}
                     <div className="max-w-7xl mx-auto">
                         <div className="bg-gradient-to-br from-emerald-900/40 to-green-950/40 backdrop-blur-sm border border-emerald-700/30 rounded-2xl shadow-2xl p-6 mb-6">
-                            <div className="flex justify-between mb-6">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6">
                                 <div>
-                                    <h1 className="text-4xl font-bold text-emerald-400 mb-2">Kalkulator Zysków z Upraw</h1>
-                                    <p className="text-emerald-300/70 text-sm">Współdzielone dane</p>
+                                    <h1 className="text-4xl font-extrabold text-emerald-400 mb-1">Kalkulator Zysków z Upraw</h1>
+                                    <p className="text-emerald-300/70 text-xs sm:text-sm">Twoje prywatne dane | Użytkownik: <span className="font-mono text-emerald-300 break-all">{fullUserId}</span></p>
                                 </div>
-                                {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded h-fit">{saving ? '💾 Zapisywanie...' : message}</span>}
+                                <div className="flex flex-col items-end mt-4 sm:mt-0">
+                                    {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded h-fit transition-opacity duration-300">{saving ? '💾 Zapisywanie...' : message}</span>}
+                                    <button onClick={() => setShowResetModal(true)} className="mt-2 text-red-400 text-xs hover:text-red-300 transition-colors">Wyczyść dane (Reset)</button>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => setActiveTab('base')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'base' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'}`}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => setActiveTab('base')} 
+                                    className={`py-3 px-4 rounded-xl font-bold transition-all transform hover:scale-[1.02] ${activeTab === 'base' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg' : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'}`}
+                                >
                                     📦 Baza Cen Upraw
                                 </button>
-                                <button onClick={() => setActiveTab('recipes')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'recipes' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'}`}>
+                                <button 
+                                    onClick={() => setActiveTab('recipes')} 
+                                    className={`py-3 px-4 rounded-xl font-bold transition-all transform hover:scale-[1.02] ${activeTab === 'recipes' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg' : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'}`}
+                                >
                                     🧪 Receptury Produktów
                                 </button>
                             </div>
                         </div>
 
                         {activeTab === 'base' && (
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-6">
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-4 md:p-6">
                                 <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw</h2>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="border-b-2 border-emerald-700/40">
-                                                <th onClick={() => handleSort('name')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Nazwa {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-                                                <th onClick={() => handleSort('buyPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Zakupu {sortBy === 'buyPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-                                                <th onClick={() => handleSort('sellPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Sprzedaży {sortBy === 'sellPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-                                                <th onClick={() => handleSort('time')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Czas (h) {sortBy === 'time' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-                                                <th className="text-left py-3 px-3 text-emerald-400 font-semibold">Zysk</th>
+                                <div className="overflow-x-auto rounded-lg border border-emerald-900/40">
+                                    <table className="min-w-full divide-y divide-emerald-700/40">
+                                        <thead className="bg-slate-900/50">
+                                            <tr>
+                                                <Th col="name" currentSort={sortBy} order={sortOrder} handleSort={handleSort}>Nazwa</Th>
+                                                <Th col="buyPrice" currentSort={sortBy} order={sortOrder} handleSort={handleSort}>Cena Zakupu</Th>
+                                                <Th col="sellPrice" currentSort={sortBy} order={sortOrder} handleSort={handleSort}>Cena Sprzedaży</Th>
+                                                <Th col="time" currentSort={sortBy} order={sortOrder} handleSort={handleSort}>Czas (h)</Th>
+                                                <Th>Zysk</Th>
                                                 <th className="py-3 px-2"></th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="divide-y divide-emerald-900/20 text-sm">
                                             {sorted.length === 0 ? (
                                                 <tr><td colSpan="6" className="text-center py-8 text-emerald-400/50">Brak upraw</td></tr>
                                             ) : (
                                                 sorted.map((c, i) => (
-                                                    <tr key={c.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}>
-                                                        <td className="py-2 px-3"><input type="text" value={c.name} onChange={(e) => updateBaseCrop(c.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-                                                        <td className="py-2 px-3"><input type="number" value={c.buyPrice} onChange={(e) => updateBaseCrop(c.id, 'buyPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-                                                        <td className="py-2 px-3"><input type="number" value={c.sellPrice} onChange={(e) => updateBaseCrop(c.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-                                                        <td className="py-2 px-3"><input type="number" value={c.time} onChange={(e) => updateBaseCrop(c.id, 'time', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
+                                                    <tr key={c.id} className={`hover:bg-emerald-900/20 transition-colors`}>
+                                                        <td className="py-2 px-3"><input type="text" value={c.name} onChange={(e) => updateBaseCrop(c.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-emerald-500 focus:border-emerald-500"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.buyPrice} onChange={(e) => updateBaseCrop(c.id, 'buyPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-emerald-500 focus:border-emerald-500"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.sellPrice} onChange={(e) => updateBaseCrop(c.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-emerald-500 focus:border-emerald-500"/></td>
+                                                        <td className="py-2 px-3"><input type="number" value={c.time} onChange={(e) => updateBaseCrop(c.id, 'time', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-emerald-500 focus:border-emerald-500"/></td>
                                                         <td className="py-2 px-3"><span className="font-bold text-emerald-400 text-sm">{(c.sellPrice - c.buyPrice).toFixed(2)}</span></td>
-                                                        <td className="py-2 px-2"><button onClick={() => deleteBaseCrop(c.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded">✕</button></td>
+                                                        <td className="py-2 px-2"><button onClick={() => deleteBaseCrop(c.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded-full transition-colors">✕</button></td>
                                                     </tr>
                                                 ))
                                             )}
@@ -248,89 +395,112 @@
                                     </table>
                                 </div>
                                 <div className="flex gap-3 mt-4">
-                                    <button onClick={addBaseCrop} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-semibold">+ Dodaj Surowiec</button>
-                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
+                                    <button onClick={addBaseCrop} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-semibold shadow-md transition-colors">
+                                        + Dodaj Surowiec
+                                    </button>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'recipes' && (
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-6">
+                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-4 md:p-6">
                                 <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2>
                                 {recipes.length === 0 ? (
                                     <div className="text-center py-8 text-blue-400/50">Brak receptur</div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                         {recipes.map(r => {
                                             const cost = calcCost(r);
                                             const profit = calcProfit(r);
                                             return (
-                                                <div key={r.id} className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30">
-                                                    <div className="grid grid-cols-2 gap-3 mb-3">
-                                                        <div>
-                                                            <label className="text-blue-400 text-xs mb-1 block">Produkt</label>
-                                                            <input type="text" value={r.name} onChange={(e) => updateRecipe(r.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-blue-400 text-xs mb-1 block">Cena Sprzedaży</label>
-                                                            <input type="number" value={r.sellPrice} onChange={(e) => updateRecipe(r.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mb-3">
-                                                        <label className="text-blue-400 text-xs mb-1 block">Składniki:</label>
-                                                        {r.ingredients.length === 0 ? (
-                                                            <p className="text-blue-400/50 text-xs mb-2">Brak składników</p>
-                                                        ) : (
-                                                            <div className="space-y-2 mb-2">
-                                                                {r.ingredients.map((ing, idx) => {
-                                                                    const cd = baseCrops.find(c => c.name === ing.crop);
-                                                                    const ic = cd ? cd.buyPrice * ing.amount : 0;
-                                                                    return (
-                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-2 rounded">
-                                                                            <select value={ing.crop} onChange={(e) => updateIngredient(r.id, idx, 'crop', e.target.value)} className="flex-1 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm">
-                                                                                <option value="">Wybierz</option>
-                                                                                {baseCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                                            </select>
-                                                                            <input type="number" value={ing.amount} onChange={(e) => updateIngredient(r.id, idx, 'amount', parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm" min="1"/>
-                                                                            <span className="text-blue-300 text-xs w-16 text-right">={ic.toFixed(2)}</span>
-                                                                            <button onClick={() => deleteIngredient(r.id, idx)} className="text-red-400 px-1">✕</button>
-                                                                        </div>
-                                                                    );
-                                                                })}
+                                                <div key={r.id} className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30 flex flex-col justify-between">
+                                                    <div>
+                                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                                            <div>
+                                                                <label className="text-blue-400 text-xs mb-1 block font-semibold">Produkt</label>
+                                                                <input type="text" value={r.name} onChange={(e) => updateRecipe(r.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm focus:ring-blue-500 focus:border-blue-500"/>
                                                             </div>
-                                                        )}
-                                                        <button onClick={() => addIngredient(r.id)} className="text-blue-400 text-xs">+ Dodaj składnik</button>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-700/40 mb-3">
-                                                        <div className="text-center">
-                                                            <p className="text-blue-400/70 text-xs">Koszt</p>
-                                                            <p className="text-xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
+                                                            <div>
+                                                                <label className="text-blue-400 text-xs mb-1 block font-semibold">Cena Sprzedaży</label>
+                                                                <input type="number" value={r.sellPrice} onChange={(e) => updateRecipe(r.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm focus:ring-blue-500 focus:border-blue-500"/>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-center">
-                                                            <p className="text-blue-400/70 text-xs">Zysk</p>
-                                                            <p className={`text-xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{profit.toFixed(2)}</p>
+                                                        <div className="mb-3">
+                                                            <label className="text-blue-400 text-xs mb-1 block font-semibold">Składniki:</label>
+                                                            {r.ingredients.length === 0 ? (
+                                                                <p className="text-blue-400/50 text-xs mb-2">Brak składników</p>
+                                                            ) : (
+                                                                <div className="space-y-2 mb-2">
+                                                                    {r.ingredients.map((ing, idx) => {
+                                                                        const cd = baseCrops.find(c => c.name === ing.crop);
+                                                                        const buyPrice = cd ? Number(cd.buyPrice) || 0 : 0;
+                                                                        const amount = Number(ing.amount) || 0;
+                                                                        const ic = buyPrice * amount;
+                                                                        return (
+                                                                            <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-2 rounded">
+                                                                                <select value={ing.crop} onChange={(e) => updateIngredient(r.id, idx, 'crop', e.target.value)} className="flex-1 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm focus:ring-blue-500 focus:border-blue-500">
+                                                                                    <option value="">Wybierz</option>
+                                                                                    {baseCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                                                </select>
+                                                                                <input type="number" value={ing.amount} onChange={(e) => updateIngredient(r.id, idx, 'amount', parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm focus:ring-blue-500 focus:border-blue-500" min="1"/>
+                                                                                <span className="text-blue-300 text-xs w-16 text-right shrink-0">={ic.toFixed(2)}</span>
+                                                                                <button onClick={() => deleteIngredient(r.id, idx)} className="text-red-400 hover:text-red-300 px-1 shrink-0">✕</button>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                            <button onClick={() => addIngredient(r.id)} className="text-blue-400 text-xs mt-1 hover:text-blue-300 transition-colors">+ Dodaj składnik</button>
                                                         </div>
                                                     </div>
-                                                    <button onClick={() => deleteRecipe(r.id)} className="w-full py-1 bg-red-700/30 text-red-400 rounded text-sm">Usuń</button>
+                                                    <div className="mt-auto">
+                                                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-700/40 mb-3">
+                                                            <div className="text-center">
+                                                                <p className="text-blue-400/70 text-xs">Całkowity Koszt</p>
+                                                                <p className="text-xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
+                                                            </div>
+                                                            <div className="text-center">
+                                                                <p className="text-blue-400/70 text-xs">Zysk (Sprzedaż - Koszt)</p>
+                                                                <p className={`text-xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{profit.toFixed(2)}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button onClick={() => deleteRecipe(r.id)} className="w-full py-2 bg-red-700/30 hover:bg-red-700/50 text-red-400 rounded-lg text-sm font-semibold transition-colors">Usuń Recepturę</button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 )}
                                 <div className="flex gap-3 mt-4">
-                                    <button onClick={addRecipe} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded font-semibold">+ Dodaj Recepturę</button>
-                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
+                                    <button onClick={addRecipe} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg font-semibold shadow-md transition-colors">
+                                        + Dodaj Recepturę
+                                    </button>
                                 </div>
                             </div>
                         )}
+                        <p className="mt-8 text-center text-xs text-slate-500">Identyfikator aplikacji: {appId}</p>
                     </div>
                 </div>
             );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Helper component for sortable table headers
+        const Th = ({ col, currentSort, order, handleSort, children }) => (
+            <th onClick={() => handleSort(col)} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20 transition-colors">
+                <div className="flex items-center">
+                    {children} {currentSort === col && (order === 'asc' ? ' ▲' : ' ▼')}
+                </div>
+            </th>
+        );
+
+        // Render the App component
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(
+            <React.StrictMode>
+                <App />
+            </React.StrictMode>
+        );
+
     </script>
 </body>
 </html>
-
-
