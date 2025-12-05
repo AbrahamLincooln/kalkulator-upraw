@@ -1,643 +1,566 @@
- <!DOCTYPE html>
-
-<html lang="pl">
-
-<head>
-
-    <meta charset="UTF-8">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Kalkulator Zysków</title>
-
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-
-        body { background: linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%); }
-
-    </style>
-
-</head>
-
-<body>
-
-    <div id="root"></div>
-
-    <script type="text/babel">
-
-        const { useState, useEffect } = React;
-
-
-        function App() {
-
-            const [activeTab, setActiveTab] = useState('base');
-
-            const [baseCrops, setBaseCrops] = useState([]);
-
-            const [recipes, setRecipes] = useState([]);
-
-            const [nextBaseCropId, setNextBaseCropId] = useState(1);
-
-            const [nextRecipeId, setNextRecipeId] = useState(1);
-
-            const [loading, setLoading] = useState(true);
-
-            const [saving, setSaving] = useState(false);
-
-            const [message, setMessage] = useState('');
-
-            const [sortBy, setSortBy] = useState('name');
-
-            const [sortOrder, setSortOrder] = useState('asc');
-
-
-            useEffect(() => { loadData(); }, []);
-
-
-            const loadData = async () => {
-
-                try {
-
-                    setLoading(true);
-
-                    const result = await window.storage.get('kalkulator-upraw-data', true);
-
-                    if (result?.value) {
-
-                        const data = JSON.parse(result.value);
-
-                        setBaseCrops(data.baseCrops || []);
-
-                        setRecipes(data.recipes || []);
-
-                        setNextBaseCropId(data.nextBaseCropId || 1);
-
-                        setNextRecipeId(data.nextRecipeId || 1);
-
-                    } else {
-
-                        setBaseCrops([
-
-                            { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
-
-                            { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
-
-                        ]);
-
-                        setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
-
-                        setNextBaseCropId(3);
-
-                        setNextRecipeId(2);
-
-                    }
-
-                } catch (e) {
-
-                    setBaseCrops([
-
-                        { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 },
-
-                        { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 }
-
-                    ]);
-
-                    setRecipes([{ id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }]);
-
-                    setNextBaseCropId(3);
-
-                    setNextRecipeId(2);
-
-                } finally {
-
-                    setLoading(false);
-
-                }
-
-            };
-
-
-            const saveData = async (bc, r, bcId, rId) => {
-
-                try {
-
-                    setSaving(true);
-
-                    await window.storage.set('kalkulator-upraw-data', JSON.stringify({
-
-                        baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId
-
-                    }), true);
-
-                    setMessage('✓ Zapisano');
-
-                    setTimeout(() => setMessage(''), 2000);
-
-                } catch (e) {
-
-                    setMessage('✗ Błąd');
-
-                    setTimeout(() => setMessage(''), 2000);
-
-                } finally {
-
-                    setSaving(false);
-
-                }
-
-            };
-
-
-            const addBaseCrop = () => {
-
-                const nb = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0, time: 0 }];
-
-                setBaseCrops(nb);
-
-                setNextBaseCropId(nextBaseCropId + 1);
-
-                saveData(nb, recipes, nextBaseCropId + 1, nextRecipeId);
-
-            };
-
-
-            const updateBaseCrop = (id, field, value) => {
-
-                const nb = baseCrops.map(c => c.id === id ? { ...c, [field]: value } : c);
-
-                setBaseCrops(nb);
-
-                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const deleteBaseCrop = (id) => {
-
-                const nb = baseCrops.filter(c => c.id !== id);
-
-                setBaseCrops(nb);
-
-                saveData(nb, recipes, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const sortCrops = (crops) => {
-
-                return [...crops].sort((a, b) => {
-
-                    let av, bv;
-
-                    if (sortBy === 'name') {
-
-                        av = a.name.toLowerCase();
-
-                        bv = b.name.toLowerCase();
-
-                        return sortOrder === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-
-                    } else {
-
-                        av = a[sortBy];
-
-                        bv = b[sortBy];
-
-                        return sortOrder === 'asc' ? av - bv : bv - av;
-
-                    }
-
-                });
-
-            };
-
-
-            const handleSort = (col) => {
-
-                if (sortBy === col) {
-
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-
-                } else {
-
-                    setSortBy(col);
-
-                    setSortOrder('asc');
-
-                }
-
-            };
-
-
-            const addRecipe = () => {
-
-                const nr = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }];
-
-                setRecipes(nr);
-
-                setNextRecipeId(nextRecipeId + 1);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId + 1);
-
-            };
-
-
-            const updateRecipe = (id, field, value) => {
-
-                const nr = recipes.map(r => r.id === id ? { ...r, [field]: value } : r);
-
-                setRecipes(nr);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const deleteRecipe = (id) => {
-
-                const nr = recipes.filter(r => r.id !== id);
-
-                setRecipes(nr);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const addIngredient = (rId) => {
-
-                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: '', amount: 1 }] } : r);
-
-                setRecipes(nr);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const updateIngredient = (rId, idx, field, value) => {
-
-                const nr = recipes.map(r => {
-
-                    if (r.id === rId) {
-
-                        const ni = [...r.ingredients];
-
-                        ni[idx] = { ...ni[idx], [field]: value };
-
-                        return { ...r, ingredients: ni };
-
-                    }
-
-                    return r;
-
-                });
-
-                setRecipes(nr);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const deleteIngredient = (rId, idx) => {
-
-                const nr = recipes.map(r => r.id === rId ? { ...r, ingredients: r.ingredients.filter((_, i) => i !== idx) } : r);
-
-                setRecipes(nr);
-
-                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId);
-
-            };
-
-
-            const calcCost = (recipe) => {
-
-                return recipe.ingredients.reduce((t, ing) => {
-
-                    const c = baseCrops.find(x => x.name === ing.crop);
-
-                    return t + (c ? c.buyPrice * ing.amount : 0);
-
-                }, 0);
-
-            };
-
-
-            const calcProfit = (recipe) => recipe.sellPrice - calcCost(recipe);
-
-
-            const resetData = async () => {
-
-                if (confirm('Wyczyścić wszystkie dane?')) {
-
-                    try {
-
-                        await window.storage.delete('shared-crops-v3', true);
-
-                        setBaseCrops([]);
-
-                        setRecipes([]);
-
-                        setNextBaseCropId(1);
-
-                        setNextRecipeId(1);
-
-                        setMessage('✓ Wyczyszczono');
-
-                        setTimeout(() => setMessage(''), 2000);
-
-                    } catch (e) {}
-
-                }
-
-            };
-
-
-            if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-emerald-400 text-xl">Ładowanie...</div></div>;
-
-
-            const sorted = sortCrops(baseCrops);
-
-
-            return (
-
-                <div className="min-h-screen p-4 md:p-8">
-
-                    <div className="max-w-7xl mx-auto">
-
-                        <div className="bg-gradient-to-br from-emerald-900/40 to-green-950/40 backdrop-blur-sm border border-emerald-700/30 rounded-2xl shadow-2xl p-6 mb-6">
-
-                            <div className="flex justify-between mb-6">
-
-                                <div>
-
-                                    <h1 className="text-4xl font-bold text-emerald-400 mb-2">Kalkulator Zysków z Upraw</h1>
-
-                                    <p className="text-emerald-300/70 text-sm">Współdzielone dane</p>
-
-                                </div>
-
-                                {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded h-fit">{saving ? '💾 Zapisywanie...' : message}</span>}
-
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                                <button onClick={() => setActiveTab('base')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'base' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'}`}>
-
-                                    📦 Baza Cen Upraw
-
-                                </button>
-
-                                <button onClick={() => setActiveTab('recipes')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'recipes' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg scale-105' : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'}`}>
-
-                                    🧪 Receptury Produktów
-
-                                </button>
-
-                            </div>
-
-                        </div>
-
-
-                        {activeTab === 'base' && (
-
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-emerald-800/30 rounded-2xl shadow-2xl p-6">
-
-                                <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Upraw</h2>
-
-                                <div className="overflow-x-auto">
-
-                                    <table className="w-full">
-
-                                        <thead>
-
-                                            <tr className="border-b-2 border-emerald-700/40">
-
-                                                <th onClick={() => handleSort('name')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Nazwa {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-
-                                                <th onClick={() => handleSort('buyPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Zakupu {sortBy === 'buyPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-
-                                                <th onClick={() => handleSort('sellPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Sprzedaży {sortBy === 'sellPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-
-                                                <th onClick={() => handleSort('time')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Czas (h) {sortBy === 'time' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
-
-                                                <th className="text-left py-3 px-3 text-emerald-400 font-semibold">Zysk</th>
-
-                                                <th className="py-3 px-2"></th>
-
-                                            </tr>
-
-                                        </thead>
-
-                                        <tbody>
-
-                                            {sorted.length === 0 ? (
-
-                                                <tr><td colSpan="6" className="text-center py-8 text-emerald-400/50">Brak upraw</td></tr>
-
-                                            ) : (
-
-                                                sorted.map((c, i) => (
-
-                                                    <tr key={c.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}>
-
-                                                        <td className="py-2 px-3"><input type="text" value={c.name} onChange={(e) => updateBaseCrop(c.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-
-                                                        <td className="py-2 px-3"><input type="number" value={c.buyPrice} onChange={(e) => updateBaseCrop(c.id, 'buyPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-
-                                                        <td className="py-2 px-3"><input type="number" value={c.sellPrice} onChange={(e) => updateBaseCrop(c.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-
-                                                        <td className="py-2 px-3"><input type="number" value={c.time} onChange={(e) => updateBaseCrop(c.id, 'time', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm"/></td>
-
-                                                        <td className="py-2 px-3"><span className="font-bold text-emerald-400 text-sm">{(c.sellPrice - c.buyPrice).toFixed(2)}</span></td>
-
-                                                        <td className="py-2 px-2"><button onClick={() => deleteBaseCrop(c.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded">✕</button></td>
-
-                                                    </tr>
-
-                                                ))
-
-                                            )}
-
-                                        </tbody>
-
-                                    </table>
-
-                                </div>
-
-                                <div className="flex gap-3 mt-4">
-
-                                    <button onClick={addBaseCrop} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-semibold">+ Dodaj Surowiec</button>
-
-                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
-
-                                </div>
-
-                            </div>
-
-                        )}
-
-
-                        {activeTab === 'recipes' && (
-
-                            <div className="bg-gradient-to-br from-slate-900/60 to-slate-950/60 backdrop-blur-sm border border-blue-800/30 rounded-2xl shadow-2xl p-6">
-
-                                <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2>
-
-                                {recipes.length === 0 ? (
-
-                                    <div className="text-center py-8 text-blue-400/50">Brak receptur</div>
-
-                                ) : (
-
-                                    <div className="space-y-4">
-
-                                        {recipes.map(r => {
-
-                                            const cost = calcCost(r);
-
-                                            const profit = calcProfit(r);
-
-                                            return (
-
-                                                <div key={r.id} className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30">
-
-                                                    <div className="grid grid-cols-2 gap-3 mb-3">
-
-                                                        <div>
-
-                                                            <label className="text-blue-400 text-xs mb-1 block">Produkt</label>
-
-                                                            <input type="text" value={r.name} onChange={(e) => updateRecipe(r.id, 'name', e.target.value)} placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
-
-                                                        </div>
-
-                                                        <div>
-
-                                                            <label className="text-blue-400 text-xs mb-1 block">Cena Sprzedaży</label>
-
-                                                            <input type="number" value={r.sellPrice} onChange={(e) => updateRecipe(r.id, 'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm"/>
-
-                                                        </div>
-
-                                                    </div>
-
-                                                    <div className="mb-3">
-
-                                                        <label className="text-blue-400 text-xs mb-1 block">Składniki:</label>
-
-                                                        {r.ingredients.length === 0 ? (
-
-                                                            <p className="text-blue-400/50 text-xs mb-2">Brak składników</p>
-
-                                                        ) : (
-
-                                                            <div className="space-y-2 mb-2">
-
-                                                                {r.ingredients.map((ing, idx) => {
-
-                                                                    const cd = baseCrops.find(c => c.name === ing.crop);
-
-                                                                    const ic = cd ? cd.buyPrice * ing.amount : 0;
-
-                                                                    return (
-
-                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 p-2 rounded">
-
-                                                                            <select value={ing.crop} onChange={(e) => updateIngredient(r.id, idx, 'crop', e.target.value)} className="flex-1 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm">
-
-                                                                                <option value="">Wybierz</option>
-
-                                                                                {baseCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-
-                                                                            </select>
-
-                                                                            <input type="number" value={ing.amount} onChange={(e) => updateIngredient(r.id, idx, 'amount', parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 text-sm" min="1"/>
-
-                                                                            <span className="text-blue-300 text-xs w-16 text-right">={ic.toFixed(2)}</span>
-
-                                                                            <button onClick={() => deleteIngredient(r.id, idx)} className="text-red-400 px-1">✕</button>
-
-                                                                        </div>
-
-                                                                    );
-
-                                                                })}
-
-                                                            </div>
-
-                                                        )}
-
-                                                        <button onClick={() => addIngredient(r.id)} className="text-blue-400 text-xs">+ Dodaj składnik</button>
-
-                                                    </div>
-
-                                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-700/40 mb-3">
-
-                                                        <div className="text-center">
-
-                                                            <p className="text-blue-400/70 text-xs">Koszt</p>
-
-                                                            <p className="text-xl font-bold text-yellow-400">{cost.toFixed(2)}</p>
-
-                                                        </div>
-
-                                                        <div className="text-center">
-
-                                                            <p className="text-blue-400/70 text-xs">Zysk</p>
-
-                                                            <p className={`text-xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{profit.toFixed(2)}</p>
-
-                                                        </div>
-
-                                                    </div>
-
-                                                    <button onClick={() => deleteRecipe(r.id)} className="w-full py-1 bg-red-700/30 text-red-400 rounded text-sm">Usuń</button>
-
-                                                </div>
-
-                                            );
-
-                                        })}
-
-                                    </div>
-
-                                )}
-
-                                <div className="flex gap-3 mt-4">
-
-                                    <button onClick={addRecipe} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded font-semibold">+ Dodaj Recepturę</button>
-
-                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold">🔄 Odśwież</button>
-
-                                </div>
-
-                            </div>
-
-                        )}
-
-                    </div>
-
-                </div>
-
-            );
-
+<!DOCTYPE html> 
+<html lang="pl"> 
+<head> 
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Kalkulator Zysków</title> 
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script> 
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script> 
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script> 
+    <script src="https://cdn.tailwindcss.com"></script> 
+    <!-- Używamy czcionki Inter dla lepszej estetyki -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { 
+            background: linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%); 
+            font-family: 'Inter', sans-serif;
+        } 
+        /* Styl dla inputów w tabeli - by zminimalizować błąd wpisywania */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style> 
+</head> 
+<body> 
+    <div id="root"></div> 
+    <script type="text/babel"> 
+        const { useState, useEffect, useRef } = React; 
+
+        // Klucz do przechowywania danych w localStorage
+        const APP_STORAGE_KEY = 'kalkulator-upraw-data';
+        
+        // Domyślne dane początkowe
+        const DEFAULT_BASE_CROPS = [
+            { id: 1, name: 'Pszenica', buyPrice: 10, sellPrice: 12, time: 2 }, 
+            { id: 2, name: 'Mleko', buyPrice: 15, sellPrice: 18, time: 1 } 
+        ];
+        const DEFAULT_RECIPES = [
+            { id: 1, name: 'Chleb', ingredients: [{crop: 'Pszenica', amount: 3}], sellPrice: 50 }
+        ];
+
+        function App() { 
+            const [activeTab, setActiveTab] = useState('base'); 
+            const [baseCrops, setBaseCrops] = useState([]); 
+            const [recipes, setRecipes] = useState([]); 
+            const [nextBaseCropId, setNextBaseCropId] = useState(1); 
+            const [nextRecipeId, setNextRecipeId] = useState(1); 
+            const [loading, setLoading] = useState(true); 
+            const [saving, setSaving] = useState(false); 
+            const [message, setMessage] = useState(''); 
+            const [sortBy, setSortBy] = useState('name'); 
+            const [sortOrder, setSortOrder] = useState('asc'); 
+            const [isConfirmingReset, setIsConfirmingReset] = useState(false); // Stan do potwierdzenia resetu
+            
+            const fileInputRef = useRef(null);
+
+            // Używamy useEffect do ładowania danych po starcie
+            useEffect(() => { loadData(); }, []); 
+
+            const loadData = () => { 
+                setLoading(true); 
+                try { 
+                    const storedData = localStorage.getItem(APP_STORAGE_KEY); 
+                    if (storedData) { 
+                        const data = JSON.parse(storedData); 
+                        // Zapewnienie poprawności typów po załadowaniu
+                        const parsedCrops = (data.baseCrops || []).map(c => ({
+                            ...c,
+                            buyPrice: parseFloat(c.buyPrice) || 0,
+                            sellPrice: parseFloat(c.sellPrice) || 0,
+                            time: parseFloat(c.time) || 0,
+                        }));
+                        const parsedRecipes = (data.recipes || []).map(r => ({
+                            ...r,
+                            sellPrice: parseFloat(r.sellPrice) || 0,
+                            ingredients: (r.ingredients || []).map(ing => ({
+                                ...ing,
+                                amount: parseInt(ing.amount) || 1
+                            }))
+                        }));
+
+                        setBaseCrops(parsedCrops); 
+                        setRecipes(parsedRecipes); 
+                        setNextBaseCropId(data.nextBaseCropId || Math.max(...parsedCrops.map(c => c.id), 0) + 1 || 1); 
+                        setNextRecipeId(data.nextRecipeId || Math.max(...parsedRecipes.map(r => r.id), 0) + 1 || 1); 
+                    } else { 
+                        // Ładowanie domyślnych danych, jeśli localStorage jest pusty
+                        setBaseCrops(DEFAULT_BASE_CROPS); 
+                        setRecipes(DEFAULT_RECIPES); 
+                        setNextBaseCropId(3); 
+                        setNextRecipeId(2); 
+                    } 
+                } catch (e) { 
+                    console.error("Błąd ładowania danych z localStorage:", e);
+                    // Domyślne dane w przypadku błędu
+                    setBaseCrops(DEFAULT_BASE_CROPS); 
+                    setRecipes(DEFAULT_RECIPES); 
+                    setNextBaseCropId(3); 
+                    setNextRecipeId(2); 
+                    setMessage('✗ Błąd ładowania danych. Załadowano domyślne.'); 
+                    setTimeout(() => setMessage(''), 3000);
+                } finally { 
+                    setLoading(false); 
+                } 
+            }; 
+
+            const saveData = (bc, r, bcId, rId) => { 
+                try { 
+                    setSaving(true); 
+                    const dataToSave = JSON.stringify({ 
+                        baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId 
+                    }); 
+                    localStorage.setItem(APP_STORAGE_KEY, dataToSave); 
+                    setMessage('✓ Zapisano'); 
+                    setTimeout(() => setMessage(''), 2000); 
+                } catch (e) { 
+                    console.error("Błąd zapisywania danych do localStorage:", e);
+                    setMessage('✗ Błąd zapisu'); 
+                    setTimeout(() => setMessage(''), 2000); 
+                } finally { 
+                    setSaving(false); 
+                } 
+            }; 
+
+            // --- Funkcje Import/Export ---
+
+            const handleExport = () => {
+                const data = { baseCrops, recipes, nextBaseCropId, nextRecipeId };
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'kalkulator_upraw_export.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setMessage('💾 Dane wyeksportowane');
+                setTimeout(() => setMessage(''), 3000);
+            };
+
+            const handleImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        
+                        // Walidacja podstawowej struktury
+                        if (importedData.baseCrops && importedData.recipes) {
+                            // Zapis danych do stanu i localStorage
+                            setBaseCrops(importedData.baseCrops);
+                            setRecipes(importedData.recipes);
+                            setNextBaseCropId(importedData.nextBaseCropId || Math.max(...importedData.baseCrops.map(c => c.id), 0) + 1 || 1);
+                            setNextRecipeId(importedData.nextRecipeId || Math.max(...importedData.recipes.map(r => r.id), 0) + 1 || 1);
+                            saveData(importedData.baseCrops, importedData.recipes, importedData.nextBaseCropId || nextBaseCropId, importedData.nextRecipeId || nextRecipeId);
+                            setMessage('✅ Dane zaimportowane!');
+                        } else {
+                            throw new Error("Nieprawidłowa struktura pliku.");
+                        }
+                    } catch (error) {
+                        console.error("Błąd parsowania pliku importu:", error);
+                        setMessage('❌ Błąd: Nieprawidłowy format pliku JSON.');
+                    }
+                    setTimeout(() => setMessage(''), 3000);
+                };
+                reader.readAsText(file);
+                // Resetowanie inputu, aby móc załadować ten sam plik ponownie
+                event.target.value = null; 
+            };
+
+            // Wyzwolenie kliknięcia ukrytego inputu pliku
+            const triggerImport = () => {
+                fileInputRef.current.click();
+            };
+
+            // --- Koniec Funkcji Import/Export ---
 
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+            const addBaseCrop = () => { 
+                const nb = [...baseCrops, { id: nextBaseCropId, name: '', buyPrice: 0, sellPrice: 0, time: 0 }]; 
+                setBaseCrops(nb); 
+                setNextBaseCropId(nextBaseCropId + 1); 
+                saveData(nb, recipes, nextBaseCropId + 1, nextRecipeId); 
+            }; 
 
-    </script>
+            const updateBaseCrop = (id, field, value) => { 
+                const nb = baseCrops.map(c => c.id === id ? { ...c, [field]: value } : c); 
+                setBaseCrops(nb); 
+                saveData(nb, recipes, nextBaseCropId, nextRecipeId); 
+            }; 
 
-</body>
+            const deleteBaseCrop = (id) => { 
+                const nb = baseCrops.filter(c => c.id !== id); 
+                setBaseCrops(nb); 
+                saveData(nb, recipes, nextBaseCropId, nextRecipeId); 
+            }; 
 
-</html> 
+            const sortCrops = (crops) => { 
+                return [...crops].sort((a, b) => { 
+                    let av, bv; 
+                    if (sortBy === 'name') { 
+                        av = String(a.name).toLowerCase(); 
+                        bv = String(b.name).toLowerCase(); 
+                        return sortOrder === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av); 
+                    } else { 
+                        av = parseFloat(a[sortBy]); 
+                        bv = parseFloat(b[sortBy]); 
+                        return sortOrder === 'asc' ? av - bv : bv - av; 
+                    } 
+                }); 
+            }; 
+
+            const handleSort = (col) => { 
+                if (sortBy === col) { 
+                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); 
+                } else { 
+                    setSortBy(col); 
+                    setSortOrder('asc'); 
+                } 
+            }; 
+
+            const addRecipe = () => { 
+                const nr = [...recipes, { id: nextRecipeId, name: '', ingredients: [], sellPrice: 0 }]; 
+                setRecipes(nr); 
+                setNextRecipeId(nextRecipeId + 1); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId + 1); 
+            }; 
+
+            const updateRecipe = (id, field, value) => { 
+                const nr = recipes.map(r => r.id === id ? { ...r, [field]: value } : r); 
+                setRecipes(nr); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId); 
+            }; 
+
+            const deleteRecipe = (id) => { 
+                const nr = recipes.filter(r => r.id !== id); 
+                setRecipes(nr); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId); 
+            }; 
+
+            const addIngredient = (rId) => { 
+                const nr = recipes.map(r => r.id === rId ? { ...r, 
+                ingredients: [...r.ingredients, { crop: baseCrops[0]?.name || '', amount: 1 }] } : r); 
+                setRecipes(nr); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId); 
+            }; 
+
+            const updateIngredient = (rId, idx, field, value) => { 
+                const nr = recipes.map(r => { 
+                    if (r.id === rId) { 
+                        const ni = [...r.ingredients]; 
+                        ni[idx] = { ...ni[idx], [field]: value }; 
+                        return { ...r, ingredients: ni }; 
+                    } 
+                    return r; 
+                }); 
+                setRecipes(nr); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId); 
+            }; 
+
+            const deleteIngredient = (rId, idx) => { 
+                const nr = recipes.map(r => r.id === rId ? { ...r, 
+                ingredients: r.ingredients.filter((_, i) => i !== idx) } : r); 
+                setRecipes(nr); 
+                saveData(baseCrops, nr, nextBaseCropId, nextRecipeId); 
+            }; 
+
+            const calcCost = (recipe) => { 
+                return recipe.ingredients.reduce((t, ing) => { 
+                    // Sprawdzenie, czy ing.crop to string, aby uniknąć błędów
+                    const c = baseCrops.find(x => x.name === String(ing.crop)); 
+                    return t + (c ? (parseFloat(c.buyPrice) || 0) * (parseInt(ing.amount) || 0) : 0); 
+                }, 0); 
+            }; 
+
+            const calcProfit = (recipe) => (parseFloat(recipe.sellPrice) || 0) - calcCost(recipe); 
+            
+            // Logika resetowania (zastępująca confirm())
+            const handleReset = () => {
+                if (isConfirmingReset) {
+                    performReset();
+                } else {
+                    setMessage('⚠️ Kliknij ponownie, aby potwierdzić usunięcie wszystkich danych.');
+                    setIsConfirmingReset(true);
+                    setTimeout(() => {
+                        setMessage('');
+                        setIsConfirmingReset(false);
+                    }, 5000); // Czas na potwierdzenie
+                }
+            };
+            
+            const performReset = () => {
+                try { 
+                    localStorage.removeItem(APP_STORAGE_KEY);
+                    setBaseCrops(DEFAULT_BASE_CROPS); 
+                    setRecipes(DEFAULT_RECIPES); 
+                    setNextBaseCropId(3); 
+                    setNextRecipeId(2); 
+                    setIsConfirmingReset(false);
+                    setMessage('🗑️ Wyczyszczono i przywrócono domyślne dane.'); 
+                    setTimeout(() => setMessage(''), 3000); 
+                } catch (e) {
+                    console.error("Błąd usuwania danych z localStorage:", e);
+                    setMessage('❌ Błąd podczas czyszczenia danych.');
+                    setTimeout(() => setMessage(''), 3000); 
+                }
+            };
+
+
+            if (loading) return <div className="min-h-screen flex 
+            items-center justify-center"><div className="text-emerald-400 
+            text-xl animate-pulse">Ładowanie...</div></div>; 
+
+            const sorted = sortCrops(baseCrops); 
+
+            return ( 
+                <div className="min-h-screen p-4 md:p-8"> 
+                    <div className="max-w-7xl mx-auto"> 
+
+                        <div className="bg-gradient-to-br 
+                        from-emerald-900/40 to-green-950/40 backdrop-blur-sm border 
+                        border-emerald-700/30 rounded-2xl shadow-2xl p-6 mb-6"> 
+                            
+                            <div className="flex justify-between items-start mb-6"> 
+                                <div> 
+                                    <h1 className="text-4xl 
+                                    font-bold text-emerald-400 mb-2">Kalkulator Zysków z Upraw</h1> 
+                                    <p className="text-emerald-300/70 text-sm">Przechowywanie lokalne w przeglądarce</p> 
+                                </div> 
+
+                                {/* Komunikat o zapisie/błędzie */}
+                                <div className="text-right">
+                                    <span className={`text-xs px-2 py-1 rounded h-fit ${
+                                        saving ? 'text-emerald-400 bg-emerald-900/30' : 
+                                        message.startsWith('✓') || message.startsWith('✅') ? 'text-emerald-400 bg-emerald-900/30' :
+                                        message.startsWith('❌') || message.startsWith('⚠️') ? 'text-red-400 bg-red-900/30' : 
+                                        'text-transparent'
+                                    }`}>
+                                        {saving ? '💾 Zapisywanie...' : message}
+                                    </span>
+                                </div>
+                            </div> 
+
+                            {/* Przyciski Import / Export / Reset */}
+                            <div className="flex flex-wrap gap-2 mb-4 justify-center">
+                                <button onClick={handleExport} className="flex-1 min-w-[150px] px-3 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded font-semibold transition duration-200 shadow-md">
+                                    📤 Eksportuj dane
+                                </button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleImport} 
+                                    className="hidden" 
+                                    accept=".json" 
+                                />
+                                <button onClick={triggerImport} className="flex-1 min-w-[150px] px-3 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded font-semibold transition duration-200 shadow-md">
+                                    📥 Importuj dane
+                                </button>
+                                <button 
+                                    onClick={handleReset} 
+                                    className={`flex-1 min-w-[150px] px-3 py-2 font-semibold transition duration-200 shadow-md ${isConfirmingReset ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse' : 'bg-red-800/50 hover:bg-red-700/50 text-red-300'}`}
+                                >
+                                    {isConfirmingReset ? 'KLIKNIJ ABY POTWIERDZIĆ RESET' : '🗑️ Resetuj dane'}
+                                </button>
+                            </div>
+                            
+                            {/* Przyciski zakładek */}
+                            <div className="grid grid-cols-2 gap-4"> 
+                                <button onClick={() => setActiveTab('base')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'base' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg scale-[1.02]' : 'bg-slate-800/50 text-emerald-400 hover:bg-slate-700/50 border border-emerald-700/30'}`}> 
+                                    📦 Baza Cen Surowców 
+                                </button> 
+                                <button onClick={() => setActiveTab('recipes')} className={`py-4 px-6 rounded-xl font-bold text-lg transition-all ${activeTab === 'recipes' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg scale-[1.02]' : 'bg-slate-800/50 text-blue-400 hover:bg-slate-700/50 border border-blue-700/30'}`}> 
+                                    🧪 Receptury Produktów 
+                                </button> 
+                            </div> 
+                        </div> 
+
+                        {/* Zakładka: Baza Cen Surowców */}
+                        {activeTab === 'base' && ( 
+
+                            <div className="bg-gradient-to-br 
+                            from-slate-900/60 to-slate-950/60 backdrop-blur-sm border 
+                            border-emerald-800/30 rounded-2xl shadow-2xl p-6"> 
+                                <h2 className="text-2xl font-bold text-emerald-400 mb-4">📦 Baza Cen Surowców</h2> 
+                                <div className="overflow-x-auto"> 
+                                    <table className="w-full"> 
+                                        <thead> 
+                                            <tr className="border-b-2 border-emerald-700/40"> 
+                                                <th onClick={() => handleSort('name')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20 rounded-tl">Nazwa {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}</th> 
+                                                <th onClick={() => handleSort('buyPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Zakupu {sortBy === 'buyPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th> 
+                                                <th onClick={() => handleSort('sellPrice')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Cena Sprzedaży {sortBy === 'sellPrice' && (sortOrder === 'asc' ? '▲' : '▼')}</th> 
+                                                <th onClick={() => handleSort('time')} className="text-left py-3 px-3 text-emerald-400 font-semibold cursor-pointer hover:bg-emerald-900/20">Czas (h) {sortBy === 'time' && (sortOrder === 'asc' ? '▲' : '▼')}</th> 
+                                                <th className="text-left py-3 px-3 text-emerald-400 font-semibold">Zysk / h</th> 
+                                                <th className="py-3 px-2 rounded-tr"></th> 
+                                            </tr> 
+                                        </thead> 
+                                        <tbody> 
+                                            {sorted.length === 0 ? ( 
+                                                <tr><td colSpan="6" className="text-center py-8 text-emerald-400/50">Brak surowców</td></tr> 
+                                            ) : ( 
+                                                sorted.map((c, i) => ( 
+                                                    <tr key={c.id} className={`border-b border-emerald-900/20 hover:bg-emerald-900/20 ${i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-950/30'}`}> 
+                                                        <td className="py-2 px-3"><input type="text" value={c.name} 
+                                                            onChange={(e) => updateBaseCrop(c.id, 'name', e.target.value)} 
+                                                            placeholder="Nazwa" className="w-full px-2 py-1 bg-slate-900/80 border 
+                                                            border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-1 focus:ring-emerald-400 outline-none"/></td> 
+                                                        <td className="py-2 px-3"><input type="number" value={c.buyPrice} 
+                                                            onChange={(e) => updateBaseCrop(c.id, 'buyPrice', parseFloat(e.target.value) || 0)} 
+                                                            className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-1 focus:ring-emerald-400 outline-none"/></td> 
+                                                        <td className="py-2 px-3"><input type="number" value={c.sellPrice} 
+                                                            onChange={(e) => updateBaseCrop(c.id, 'sellPrice', parseFloat(e.target.value) || 0)} 
+                                                            className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-1 focus:ring-emerald-400 outline-none"/></td> 
+                                                        <td className="py-2 px-3"><input type="number" value={c.time} 
+                                                            onChange={(e) => updateBaseCrop(c.id, 'time', parseFloat(e.target.value) || 0)} 
+                                                            className="w-full px-2 py-1 bg-slate-900/80 border border-emerald-800/40 rounded text-emerald-100 text-sm focus:ring-1 focus:ring-emerald-400 outline-none"/></td> 
+                                                        <td className="py-2 px-3">
+                                                            <span className="font-bold text-emerald-400 text-sm">
+                                                                {c.time > 0 ? ((c.sellPrice - c.buyPrice) / c.time).toFixed(2) : '0.00'}
+                                                            </span>
+                                                        </td> 
+                                                        <td className="py-2 px-2"><button onClick={() => deleteBaseCrop(c.id)} className="text-red-400 hover:bg-red-900/30 p-1 rounded-full transition">✕</button></td> 
+                                                    </tr> 
+                                                )) 
+                                            )} 
+                                        </tbody> 
+                                    </table> 
+                                </div> 
+                                <div className="flex gap-3 mt-4"> 
+                                    <button onClick={addBaseCrop} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-semibold transition duration-200 shadow-md">+ Dodaj Surowiec</button> 
+                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded font-semibold transition duration-200 shadow-md">🔄 Odśwież </button> 
+                                </div> 
+                            </div> 
+                        )} 
+
+                        {/* Zakładka: Receptury Produktów */}
+                        {activeTab === 'recipes' && ( 
+
+                            <div className="bg-gradient-to-br 
+                            from-slate-900/60 to-slate-950/60 backdrop-blur-sm border 
+                            border-blue-800/30 rounded-2xl shadow-2xl p-6"> 
+                                <h2 className="text-2xl font-bold text-blue-400 mb-4">🧪 Receptury Produktów</h2> 
+                                {recipes.length === 0 ? ( 
+                                    <div className="text-center py-8 text-blue-400/50">Brak receptur</div> 
+                                ) : ( 
+                                    <div className="space-y-6"> 
+                                        {recipes.map(r => { 
+                                            const cost = calcCost(r); 
+                                            const profit = calcProfit(r); 
+                                            return ( 
+                                                <div key={r.id} 
+                                                className="border border-blue-700/40 rounded-xl p-4 bg-slate-900/30 shadow-lg"> 
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3"> 
+                                                        <div> 
+                                                            <label 
+                                                            className="text-blue-400 text-xs mb-1 block">Produkt</label> 
+                                                            <input 
+                                                            type="text" value={r.name} onChange={(e) => updateRecipe(r.id, 
+                                                            'name', e.target.value)} placeholder="Nazwa produktu" className="w-full px-2 py-1
+                                                            bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 
+                                                            text-sm focus:ring-1 focus:ring-blue-400 outline-none"/> 
+                                                        </div> 
+                                                        <div> 
+                                                            <label 
+                                                            className="text-blue-400 text-xs mb-1 block">Cena 
+                                                            Sprzedaży</label> 
+                                                            <input 
+                                                            type="number" value={r.sellPrice} onChange={(e) => updateRecipe(r.id,
+                                                            'sellPrice', parseFloat(e.target.value) || 0)} className="w-full px-2 
+                                                            py-1 bg-slate-900/80 border border-blue-800/40 rounded text-blue-100 
+                                                            text-sm focus:ring-1 focus:ring-blue-400 outline-none"/> 
+                                                        </div> 
+                                                    </div> 
+                                                    
+                                                    <div className="mb-3"> 
+                                                        <label 
+                                                        className="text-blue-400 text-xs mb-2 block">Składniki:</label>
+                                                        
+                                                        {r.ingredients.length === 0 ? ( 
+                                                            <p className="text-blue-400/50 text-xs mb-2">Brak składników</p> 
+                                                        ) : ( 
+                                                            <div className="space-y-2 mb-2"> 
+                                                                {r.ingredients.map((ing, idx) => { 
+                                                                    const cd = baseCrops.find(c => c.name === String(ing.crop)); 
+                                                                    const ic = cd ? (parseFloat(cd.buyPrice) || 0) * (parseInt(ing.amount) || 0) : 0; 
+                                                                    return ( 
+                                                                        <div key={idx} className="flex gap-2 items-center bg-slate-900/50 
+                                                                        p-2 rounded border border-blue-800/40"> 
+                                                                            <select value={ing.crop} onChange={(e) => 
+                                                                            updateIngredient(r.id, idx, 'crop', e.target.value)} className="flex-1 
+                                                                            px-2 py-1 bg-slate-900/80 border border-blue-800/40 rounded 
+                                                                            text-blue-100 text-sm focus:ring-1 focus:ring-blue-400 outline-none"> 
+                                                                                <option value="">Wybierz surowiec</option> 
+                                                                                {baseCrops.map(c => <option key={c.id} 
+                                                                                value={c.name}>{c.name}</option>)} 
+                                                                            </select> 
+                                                                            <input type="number" value={ing.amount} onChange={(e) => 
+                                                                            updateIngredient(r.id, idx, 'amount', parseInt(e.target.value) || 1)} 
+                                                                            className="w-16 px-2 py-1 bg-slate-900/80 border border-blue-800/40 
+                                                                            rounded text-blue-100 text-sm text-center focus:ring-1 focus:ring-blue-400 outline-none" min="1"/> 
+                                                                            <span className="text-blue-300 text-xs w-20 
+                                                                            text-right">Koszt: {ic.toFixed(2)}</span> 
+                                                                            <button onClick={() => deleteIngredient(r.id, idx)} 
+                                                                            className="text-red-400 hover:bg-red-900/30 p-1 rounded-full transition">✕</button> 
+                                                                        </div> 
+                                                                    ); 
+                                                                })} 
+                                                            </div> 
+                                                        )} 
+
+                                                        <button 
+                                                        onClick={() => addIngredient(r.id)} className="text-blue-400 
+                                                        text-sm border border-blue-800/40 p-1 rounded block w-full hover:bg-blue-900/30 transition">+ Dodaj składnik</button> 
+                                                    </div> 
+
+                                                    <div 
+                                                    className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-700/40 
+                                                    mb-3"> 
+                                                        <div className="text-center"> 
+                                                            <p className="text-blue-400/70 text-sm">Całkowity Koszt</p> 
+                                                            <p 
+                                                            className="text-2xl font-bold 
+                                                            text-yellow-400">{cost.toFixed(2)}</p> 
+                                                        </div> 
+                                                        <div className="text-center"> 
+                                                            <p className="text-blue-400/70 text-sm">Zysk ze Sprzedaży</p> 
+                                                            <p 
+                                                            className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-400' : 
+                                                            'text-red-400'}`}>{profit >= 0 ? '+' : 
+                                                            ''}{profit.toFixed(2)}</p> 
+                                                        </div> 
+                                                    </div> 
+
+                                                    <button 
+                                                    onClick={() => deleteRecipe(r.id)} className="w-full py-2 
+                                                    bg-red-700/30 text-red-400 rounded text-sm font-semibold hover:bg-red-700/50 transition">Usuń Recepturę</button> 
+                                                </div> 
+                                            ); 
+                                        })} 
+                                    </div> 
+                                )} 
+                                <div className="flex gap-3 mt-4"> 
+                                    <button onClick={addRecipe} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded 
+                                    font-semibold transition duration-200 shadow-md">+ Dodaj Recepturę</button> 
+                                    <button onClick={loadData} className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white 
+                                    rounded font-semibold transition duration-200 shadow-md">🔄 Odśwież </button> 
+                                </div> 
+                            </div> 
+                        )} 
+                    </div> 
+                </div> 
+            ); 
+        } 
+
+        // RENDEROWANIE APLIKACJI
+        ReactDOM.render(<App />, document.getElementById('root')); 
+    </script> 
+</body> 
+</html>
