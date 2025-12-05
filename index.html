@@ -10,43 +10,9 @@
         import * as React from 'https://esm.sh/react@18';
         import * as ReactDOM from 'https://esm.sh/react-dom@18';
 
-        // Poprawne modułowe importy Firebase (ES6 modules)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // --- DEFINICJE DANYCH I FUNKCJE LOKALNE ---
 
-        // Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app = null;
-        let db = null;
-        let auth = null;
-        let firebaseInitialized = false;
-
-        // --- Robust Firebase Initialization and Error Handling ---
-        try {
-            setLogLevel('debug'); // Enable debug logging for troubleshooting
-
-            let firebaseConfig = {};
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                firebaseConfig = JSON.parse(__firebase_config);
-            }
-
-            if (Object.keys(firebaseConfig).length > 0) {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                firebaseInitialized = true;
-                console.log("Firebase initialized successfully.");
-            } else {
-                console.warn("Firebase configuration is missing or empty. Running without database persistence.");
-            }
-        } catch (e) {
-            console.error("FATAL ERROR during Firebase initialization. Database features disabled.", e);
-            firebaseInitialized = false;
-        }
-        // --------------------------------------------------------
+        const STORAGE_KEY = 'cropProfitCalculatorData';
 
         const defaultData = {
             baseCrops: [
@@ -60,148 +26,138 @@
             nextRecipeId: 2,
         };
         
-        // Utility function to get the document reference path for private user data
-        const getUserDataDocRef = (userId) => {
-            // Path: /artifacts/{appId}/users/{userId}/appData/data
-            return doc(db, 'artifacts', appId, 'users', userId, 'appData', 'data');
+        // Funkcja do zapisu danych w pamięci przeglądarki
+        const saveToLocalStorage = (data) => {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                console.log("Dane zapisano w LocalStorage.");
+                return true;
+            } catch (e) {
+                console.error("Błąd zapisu LocalStorage:", e);
+                return false;
+            }
         };
+
+        // Funkcja do odczytu danych z pamięci przeglądarki
+        const loadFromLocalStorage = () => {
+            try {
+                const json = localStorage.getItem(STORAGE_KEY);
+                if (json) {
+                    const data = JSON.parse(json);
+                    console.log("Dane wczytano z LocalStorage.");
+                    // Weryfikacja i scalenie z domyślnymi
+                    return {
+                        baseCrops: Array.isArray(data.baseCrops) ? data.baseCrops : defaultData.baseCrops,
+                        recipes: Array.isArray(data.recipes) ? data.recipes : defaultData.recipes,
+                        nextBaseCropId: Number.isInteger(data.nextBaseCropId) ? data.nextBaseCropId : defaultData.nextBaseCropId,
+                        nextRecipeId: Number.isInteger(data.nextRecipeId) ? data.nextRecipeId : defaultData.nextRecipeId,
+                    };
+                }
+            } catch (e) {
+                console.error("Błąd wczytywania/parsowania LocalStorage, użycie domyślnych danych:", e);
+            }
+            return defaultData;
+        };
+        
+        // Funkcja do pobierania danych jako pliku JSON
+        const exportData = (data, filename = 'kalkulator_zyskow_dane.json') => {
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+        
+        // Funkcja do wczytywania pliku JSON
+        const importData = (file, callback) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    // Prosta walidacja struktury danych
+                    if (Array.isArray(data.baseCrops) && Array.isArray(data.recipes)) {
+                        callback(data);
+                    } else {
+                        alert('Błąd: Wczytany plik JSON ma nieprawidłową strukturę danych.');
+                    }
+                } catch (e) {
+                    alert('Błąd: Nie można przetworzyć pliku JSON.');
+                    console.error('Import error:', e);
+                }
+            };
+            reader.onerror = () => {
+                alert('Błąd odczytu pliku.');
+            };
+            reader.readAsText(file);
+        };
+
 
         function App() {
             const [activeTab, setActiveTab] = React.useState('base');
-            const [baseCrops, setBaseCrops] = React.useState([]);
-            const [recipes, setRecipes] = React.useState([]);
-            const [nextBaseCropId, setNextBaseCropId] = React.useState(1);
-            const [nextRecipeId, setNextRecipeId] = React.useState(1);
-            
-            const [loading, setLoading] = React.useState(firebaseInitialized); // Start loading only if FB is expected to init
+            const [loading, setLoading] = React.useState(true); 
             const [saving, setSaving] = React.useState(false);
             const [message, setMessage] = React.useState('');
             
             const [sortBy, setSortBy] = React.useState('name');
             const [sortOrder, setSortOrder] = React.useState('asc');
             
-            const [userId, setUserId] = React.useState(null);
-            const [showResetModal, setShowResetModal] = React.useState(false); // Custom confirm state
+            const [showResetModal, setShowResetModal] = React.useState(false); 
+            
+            // Stan aplikacji
+            const [baseCrops, setBaseCrops] = React.useState(defaultData.baseCrops);
+            const [recipes, setRecipes] = React.useState(defaultData.recipes);
+            const [nextBaseCropId, setNextBaseCropId] = React.useState(defaultData.nextBaseCropId);
+            const [nextRecipeId, setNextRecipeId] = React.useState(defaultData.nextRecipeId);
+            
 
-            // 1. Firebase Authentication
+            // 1. Inicjalizacja: Wczytanie danych z LocalStorage przy starcie
             React.useEffect(() => {
-                if (!firebaseInitialized || !auth) {
-                    setLoading(false); // If FB is not initialized, stop loading and use local defaults
-                    setBaseCrops(defaultData.baseCrops);
-                    setRecipes(defaultData.recipes);
-                    setNextBaseCropId(defaultData.nextBaseCropId);
-                    setNextRecipeId(defaultData.nextRecipeId);
-                    return;
-                }
+                const data = loadFromLocalStorage();
+                setBaseCrops(data.baseCrops);
+                setRecipes(data.recipes);
+                setNextBaseCropId(data.nextBaseCropId);
+                setNextRecipeId(data.nextRecipeId);
+                setLoading(false); 
+            }, []);
 
-                const signIn = async () => {
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Firebase Sign-In failed:", error);
-                    }
-                };
-
-                // Listen for auth state changes
-                const unsubscribe = onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        setUserId(user.uid);
-                    } else {
-                        // User logged out or initial state, try to sign in
-                        signIn(); 
-                    }
-                });
-
-                return () => unsubscribe();
-            }, []); // Dependency on initial mounting
-
-            // 2. Real-time Firestore Data Listener (onSnapshot)
-            React.useEffect(() => {
-                if (!firebaseInitialized || !db || !userId) return; // Wait for successful FB init and authentication
-
-                const dataDocRef = getUserDataDocRef(userId);
-
-                // Function to initialize data if the document doesn't exist
-                const initializeData = async () => {
-                    try {
-                        await setDoc(dataDocRef, defaultData);
-                        console.log("Default data initialized.");
-                    } catch (e) {
-                        console.error("Error initializing default data:", e);
-                    }
-                };
+            // Funkcja do zapisu do LocalStorage (wywoływana po każdej zmianie stanu)
+            const triggerSave = (bc, r, bcId, rId) => {
+                setSaving(true);
+                const success = saveToLocalStorage({ baseCrops: bc, recipes: r, nextBaseCropId: bcId, nextRecipeId: rId });
+                setSaving(false);
                 
-                // Setup real-time listener
-                const unsubscribe = onSnapshot(dataDocRef, (docSnapshot) => {
-                    if (docSnapshot.exists()) {
-                        try {
-                            const data = docSnapshot.data();
-                            setBaseCrops(data.baseCrops || []);
-                            setRecipes(data.recipes || []);
-                            setNextBaseCropId(data.nextBaseCropId || 1);
-                            setNextRecipeId(data.nextRecipeId || 1);
-                            console.log("Data loaded/updated from Firestore.");
-                        } catch (e) {
-                            console.error("Error parsing document data, resetting to defaults:", e);
-                            initializeData(); // Try to reset if parsing fails
-                        }
-                    } else {
-                        console.log("No data document found. Initializing...");
-                        initializeData();
-                    }
-                    setLoading(false);
-                }, (error) => {
-                    console.error("Firestore snapshot listener failed:", error);
-                    setLoading(false);
-                });
-
-                return () => unsubscribe();
-            }, [userId]); // Re-run when userId changes and Firebase is initialized
-
-            // Replaces the old saveData with Firestore setDoc
-            const saveData = async (bc, r, bcId, rId) => {
-                if (!userId || !db) {
-                    setMessage('Brak autoryzacji do zapisu lub baza danych niedostępna');
-                    setTimeout(() => setMessage(''), 2000);
-                    return;
-                }
-                const dataDocRef = getUserDataDocRef(userId);
-                try {
-                    setSaving(true);
-                    await setDoc(dataDocRef, {
-                        baseCrops: bc, 
-                        recipes: r, 
-                        nextBaseCropId: bcId, 
-                        nextRecipeId: rId
-                    }, { merge: false });
-
+                if (success) {
                     setMessage('✓ Zapisano');
-                    setTimeout(() => setMessage(''), 2000);
-                } catch (e) {
-                    console.error("Error saving data:", e);
+                } else {
                     setMessage('✗ Błąd zapisu');
-                    setTimeout(() => setMessage(''), 2000);
-                } finally {
-                    setSaving(false);
                 }
+                setTimeout(() => setMessage(''), 1500);
             };
 
-            // Helpers to update local state and trigger remote save (via onSnapshot)
-            const updateStateAndSave = (newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId) => {
-                // Update local state immediately
+            // Helpers do aktualizacji stanu i wywołania zapisu
+            const updateStateAndSave = (newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId, msg = '✓ Zapisano') => {
+                // 1. Zaktualizuj stan lokalnie
                 setBaseCrops(newBaseCrops);
                 setRecipes(newRecipes);
                 setNextBaseCropId(newNextBaseCropId);
                 setNextRecipeId(newNextRecipeId);
                 
-                // Only save remotely if Firebase is available
-                if (firebaseInitialized) {
-                    saveData(newBaseCrops, newRecipes, newNextBaseCropId, newNextRecipeId);
+                // 2. Wywołaj zapis
+                setSaving(true);
+                const success = saveToLocalStorage({ baseCrops: newBaseCrops, recipes: newRecipes, nextBaseCropId: newNextBaseCropId, nextRecipeId: newNextRecipeId });
+                setSaving(false);
+                
+                if (success) {
+                    setMessage(msg);
+                } else {
+                    setMessage('✗ Błąd zapisu');
                 }
+                setTimeout(() => setMessage(''), 1500);
             };
 
             const addBaseCrop = () => {
@@ -230,7 +186,6 @@
                     } else {
                         av = a[sortBy];
                         bv = b[sortBy];
-                        // Handle potential NaN if price fields are empty strings during input
                         const numA = Number(av) || 0; 
                         const numB = Number(bv) || 0;
                         return sortOrder === 'asc' ? numA - numB : numB - numA;
@@ -264,7 +219,13 @@
             };
 
             const addIngredient = (rId) => {
-                const newRecipes = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: baseCrops[0]?.name || '', amount: 1 }] } : r);
+                if (baseCrops.length === 0) {
+                     setMessage('Dodaj najpierw surowiec do Bazy Cen Upraw.');
+                     setTimeout(() => setMessage(''), 2000);
+                     return;
+                }
+                
+                const newRecipes = recipes.map(r => r.id === rId ? { ...r, ingredients: [...r.ingredients, { crop: baseCrops[0].name, amount: 1 }] } : r);
                 updateStateAndSave(baseCrops, newRecipes, nextBaseCropId, nextRecipeId);
             };
 
@@ -296,26 +257,35 @@
 
             const calcProfit = (recipe) => (Number(recipe.sellPrice) || 0) - calcCost(recipe);
 
-            const performReset = async () => {
+            const performReset = () => {
                 setShowResetModal(false);
-                if (!userId || !db) {
-                    setMessage('Brak autoryzacji lub baza danych niedostępna.');
-                    setTimeout(() => setMessage(''), 2000);
-                    return;
-                }
-
-                const docRef = getUserDataDocRef(userId);
-
-                try {
-                    await deleteDoc(docRef);
-                    // Immediately re-initialize with default data to ensure the document exists again.
-                    await setDoc(docRef, defaultData); 
-                    setMessage('✓ Wyczyszczono i zainicjowano ponownie');
-                    setTimeout(() => setMessage(''), 2000);
-                } catch (e) {
-                    console.error("Error resetting data:", e);
-                    setMessage('✗ Błąd czyszczenia danych');
-                    setTimeout(() => setMessage(''), 2000);
+                // Resetuj stan do wartości domyślnych
+                updateStateAndSave(defaultData.baseCrops, defaultData.recipes, defaultData.nextBaseCropId, defaultData.nextRecipeId, '✓ Wyczyszczono i zresetowano');
+                // Usuń dane z LocalStorage
+                localStorage.removeItem(STORAGE_KEY);
+            };
+            
+            const handleExport = () => {
+                const dataToExport = { baseCrops, recipes, nextBaseCropId, nextRecipeId };
+                exportData(dataToExport);
+                setMessage('✓ Wyeksportowano dane do pliku JSON');
+                setTimeout(() => setMessage(''), 2000);
+            };
+            
+            const handleImport = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    importData(file, (importedData) => {
+                        // Import zakończony sukcesem, aktualizujemy stan i zapisujemy lokalnie
+                        updateStateAndSave(
+                            importedData.baseCrops, 
+                            importedData.recipes, 
+                            importedData.nextBaseCropId || importedData.baseCrops.length + 1, // Prosty fallback na ID
+                            importedData.nextRecipeId || importedData.recipes.length + 1,   // Prosty fallback na ID
+                            '✓ Dane zaimportowano i zapisano lokalnie'
+                        );
+                        e.target.value = null; // Clear file input
+                    });
                 }
             };
             
@@ -324,7 +294,7 @@
                 <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
                     <div className="bg-slate-800 border border-red-700/50 rounded-xl p-6 shadow-2xl max-w-sm w-full">
                         <h3 className="text-xl font-bold text-red-400 mb-3">Potwierdź czyszczenie danych</h3>
-                        <p className="text-slate-300 mb-6">Czy na pewno chcesz wyczyścić WSZYSTKIE zapisane uprawy i receptury? Ta operacja jest nieodwracalna.</p>
+                        <p className="text-slate-300 mb-6">Czy na pewno chcesz wyczyścić WSZYSTKIE zapisane uprawy i receptury? Dane zostaną usunięte z pamięci Twojej przeglądarki.</p>
                         <div className="flex justify-end gap-3">
                             <button 
                                 onClick={onClose} 
@@ -344,20 +314,20 @@
             );
 
             // Conditional rendering for loading state
-            if (loading && firebaseInitialized) return (
+            if (loading) return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-900">
                     <div className="text-emerald-400 text-xl flex items-center space-x-2">
                         <svg className="animate-spin h-5 w-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Ładowanie danych użytkownika...</span>
+                        <span>Ładowanie danych z pamięci...</span>
                     </div>
                 </div>
             );
 
             const sorted = sortCrops(baseCrops);
-            const fullUserId = userId || 'Anonim (Dostęp lokalny/brak autoryzacji)';
+            const statusMessage = 'Dane zapisane lokalnie w Twojej przeglądarce.';
 
             return (
                 <div className="min-h-screen p-4 md:p-8 font-sans" style={{ background: 'linear-gradient(135deg, #0a1f1a 0%, #0d2820 50%, #081712 100%)' }}>
@@ -367,16 +337,27 @@
                             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6">
                                 <div>
                                     <h1 className="text-4xl font-extrabold text-emerald-400 mb-1">Kalkulator Zysków z Upraw</h1>
-                                    <p className="text-emerald-300/70 text-xs sm:text-sm">Twoje prywatne dane | Użytkownik: <span className="font-mono text-emerald-300 break-all">{fullUserId}</span></p>
-                                    {!firebaseInitialized && (
-                                        <p className="text-red-400 text-sm mt-2">⚠️ Funkcje bazy danych są niedostępne. Zmiany nie zostaną zapisane.</p>
-                                    )}
+                                    <p className="text-emerald-300/70 text-xs sm:text-sm">Status: <span className="font-mono text-emerald-300 break-all">{statusMessage}</span></p>
                                 </div>
                                 <div className="flex flex-col items-end mt-4 sm:mt-0">
                                     {(saving || message) && <span className="text-xs text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded h-fit transition-opacity duration-300">{saving ? '💾 Zapisywanie...' : message}</span>}
-                                    {firebaseInitialized && (
-                                        <button onClick={() => setShowResetModal(true)} className="mt-2 text-red-400 text-xs hover:text-red-300 transition-colors">Wyczyść dane (Reset)</button>
-                                    )}
+                                    <div className="flex space-x-2 mt-2">
+                                        {/* Import Button (Hidden File Input) */}
+                                        <label htmlFor="import-file" className="cursor-pointer px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-lg font-semibold transition-colors flex items-center">
+                                            📥 Wczytaj (Import)
+                                        </label>
+                                        <input type="file" id="import-file" accept=".json" onChange={handleImport} className="hidden" />
+
+                                        {/* Export Button */}
+                                        <button onClick={handleExport} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs rounded-lg font-semibold transition-colors flex items-center">
+                                            📤 Pobierz (Eksport)
+                                        </button>
+                                        
+                                        {/* Reset Button */}
+                                        <button onClick={() => setShowResetModal(true)} className="px-3 py-1 bg-red-700/50 hover:bg-red-700/70 text-red-300 text-xs rounded-lg font-semibold transition-colors flex items-center">
+                                            🗑️ Wyczyść (Reset)
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -512,7 +493,9 @@
                                 </div>
                             </div>
                         )}
-                        <p className="mt-8 text-center text-xs text-slate-500">Identyfikator aplikacji: {appId}</p>
+                        <p className="mt-8 text-center text-xs text-slate-500">
+                            Aplikacja wykorzystuje Local Storage przeglądarki. Dane są zapisane TYLKO na tym urządzeniu. Użyj **Wczytaj/Pobierz**, aby przenieść dane między urządzeniami.
+                        </p>
                     </div>
                 </div>
             );
@@ -536,5 +519,6 @@
         );
 
     </script>
+    <div id="root"></div>
 </body>
 </html>
